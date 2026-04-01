@@ -295,6 +295,10 @@ func (c *PlatformProductClient) GetDropshippingProduct(ctx context.Context, req 
 		return nil, fmt.Errorf("dropshipping product error: code=%s message=%s", resp.Code, resp.Message)
 	}
 
+	if len(resp.Result) == 0 || string(resp.Result) == "null" {
+		return nil, fmt.Errorf("dropshipping product response has empty result; rawBody=%s", truncateForError(resp.RawBody))
+	}
+
 	var apiResp dropshippingAPIResponse
 	if err := json.Unmarshal(resp.Result, &apiResp); err != nil {
 		return nil, fmt.Errorf("decode dropshipping product response: %w; raw=%s", err, truncateForError(string(resp.Result)))
