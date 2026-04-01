@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -383,8 +384,12 @@ func parseDropshippingResponse(resp *PlatformResponse) (*dropshippingAPIResponse
 	// 2) RawBody에서 top-level wrapper로 파싱 시도
 	if resp.RawBody != "" {
 		var topLevel dropshippingTopLevelResponse
-		if err := json.Unmarshal([]byte(resp.RawBody), &topLevel); err == nil && hasDropshippingData(&topLevel.Response) {
+		if err := json.Unmarshal([]byte(resp.RawBody), &topLevel); err != nil {
+			log.Printf("parseDropshipping: unmarshal topLevel failed: %v", err)
+		} else if hasDropshippingData(&topLevel.Response) {
 			return &topLevel.Response, nil
+		} else {
+			log.Printf("parseDropshipping: parsed but no data. baseInfo=%v skus=%v", topLevel.Response.Result.BaseInfo, topLevel.Response.Result.SKUs)
 		}
 
 		// 3) error_response 확인
