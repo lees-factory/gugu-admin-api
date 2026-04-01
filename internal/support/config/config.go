@@ -21,7 +21,7 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		Port:                        getEnvOrDefault("PORT", "8081"),
+		Port:                        getEnvOrDefault("PORT", "8700"),
 		DatabaseURL:                 getEnvOrDefault("DATABASE_URL", ""),
 		AliExpressAppKey:            getEnvOrDefault("ALIEXPRESS_APP_KEY", ""),
 		AliExpressAppSecret:         getEnvOrDefault("ALIEXPRESS_APP_SECRET", ""),
