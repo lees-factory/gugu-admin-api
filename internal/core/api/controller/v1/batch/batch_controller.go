@@ -30,17 +30,11 @@ type updatePricesRequest struct {
 }
 
 type loadHotProductsRequest struct {
-	CategoryIDs    []string `json:"category_ids"`
-	Keywords       string   `json:"keywords"`
-	PageNo         int      `json:"page_no"`
-	PageSize       int      `json:"page_size"`
-	MaxPages       int      `json:"max_pages"`
-	Sort           string   `json:"sort"`
-	MinSalePrice   string   `json:"min_sale_price"`
-	MaxSalePrice   string   `json:"max_sale_price"`
-	ShipToCountry  string   `json:"ship_to_country"`
-	TargetCurrency string   `json:"target_currency"`
-	TargetLanguage string   `json:"target_language"`
+	CategoryIDs  []string `json:"category_ids"`
+	Keywords     string   `json:"keywords"`
+	Sort         string   `json:"sort"`
+	MinSalePrice string   `json:"min_sale_price"`
+	MaxSalePrice string   `json:"max_sale_price"`
 }
 
 func NewController(skuEnricher *batch.SKUEnricher, priceUpdater *batch.PriceUpdater, hotProductLoader *batch.HotProductLoader) *Controller {
@@ -67,17 +61,11 @@ func (ctrl *Controller) LoadHotProducts(c *gin.Context) {
 	}
 
 	input := batch.HotProductLoadInput{
-		CategoryIDs:    req.CategoryIDs,
-		Keywords:       req.Keywords,
-		PageNo:         req.PageNo,
-		PageSize:       req.PageSize,
-		MaxPages:       req.MaxPages,
-		Sort:           req.Sort,
-		MinSalePrice:   req.MinSalePrice,
-		MaxSalePrice:   req.MaxSalePrice,
-		ShipToCountry:  req.ShipToCountry,
-		TargetCurrency: req.TargetCurrency,
-		TargetLanguage: req.TargetLanguage,
+		CategoryIDs:  req.CategoryIDs,
+		Keywords:     req.Keywords,
+		Sort:         req.Sort,
+		MinSalePrice: req.MinSalePrice,
+		MaxSalePrice: req.MaxSalePrice,
 	}
 
 	go func() {

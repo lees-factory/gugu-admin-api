@@ -15,17 +15,11 @@ import (
 )
 
 type HotProductLoadInput struct {
-	CategoryIDs    []string `json:"category_ids"`
-	Keywords       string   `json:"keywords"`
-	PageNo         int      `json:"page_no"`
-	PageSize       int      `json:"page_size"`
-	MaxPages       int      `json:"max_pages"`
-	Sort           string   `json:"sort"`
-	MinSalePrice   string   `json:"min_sale_price"`
-	MaxSalePrice   string   `json:"max_sale_price"`
-	ShipToCountry  string   `json:"ship_to_country"`
-	TargetCurrency string   `json:"target_currency"`
-	TargetLanguage string   `json:"target_language"`
+	CategoryIDs  []string `json:"category_ids"`
+	Keywords     string   `json:"keywords"`
+	Sort         string   `json:"sort"`
+	MinSalePrice string   `json:"min_sale_price"`
+	MaxSalePrice string   `json:"max_sale_price"`
 }
 
 type HotProductLoadResult struct {
@@ -57,45 +51,31 @@ func NewHotProductLoader(
 	}
 }
 
-func (l *HotProductLoader) LoadHotProducts(ctx context.Context, input HotProductLoadInput) (*HotProductLoadResult, error) {
-	if input.PageNo <= 0 {
-		input.PageNo = 1
-	}
-	if input.PageSize <= 0 {
-		input.PageSize = 20
-	}
-	if input.PageSize > 50 {
-		input.PageSize = 50
-	}
-	if input.MaxPages <= 0 {
-		input.MaxPages = 100
-	}
-	if input.TargetCurrency == "" {
-		input.TargetCurrency = "KRW"
-	}
-	if input.TargetLanguage == "" {
-		input.TargetLanguage = "KO"
-	}
-	if input.ShipToCountry == "" {
-		input.ShipToCountry = "KR"
-	}
+const (
+	hotProductPageSize       = 20
+	hotProductMaxPages       = 1
+	hotProductTargetCurrency = "KRW"
+	hotProductTargetLanguage = "KO"
+	hotProductShipToCountry  = "KR"
+)
 
+func (l *HotProductLoader) LoadHotProducts(ctx context.Context, input HotProductLoadInput) (*HotProductLoadResult, error) {
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	result := &HotProductLoadResult{}
-	for pageOffset := 0; pageOffset < input.MaxPages; pageOffset++ {
-		pageNo := input.PageNo + pageOffset
+	for pageOffset := 0; pageOffset < hotProductMaxPages; pageOffset++ {
+		pageNo := 1 + pageOffset
 		items, err := l.client.QueryHotProducts(ctx, aliexpress.HotProductQueryRequest{
 			CategoryIDs:    input.CategoryIDs,
 			Keywords:       strings.TrimSpace(input.Keywords),
 			PageNo:         pageNo,
-			PageSize:       input.PageSize,
+			PageSize:       hotProductPageSize,
 			Sort:           strings.TrimSpace(input.Sort),
 			MinSalePrice:   strings.TrimSpace(input.MinSalePrice),
 			MaxSalePrice:   strings.TrimSpace(input.MaxSalePrice),
-			ShipToCountry:  strings.TrimSpace(input.ShipToCountry),
-			TargetCurrency: strings.TrimSpace(input.TargetCurrency),
-			TargetLanguage: strings.TrimSpace(input.TargetLanguage),
+			ShipToCountry:  hotProductShipToCountry,
+			TargetCurrency: hotProductTargetCurrency,
+			TargetLanguage: hotProductTargetLanguage,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("query hot products page %d: %w", pageNo, err)
@@ -163,11 +143,10 @@ func (l *HotProductLoader) LoadHotProducts(ctx context.Context, input HotProduct
 			result.ProductSavedCount++
 		}
 
-		if len(items) < input.PageSize {
+		if len(items) < hotProductPageSize {
 			break
 		}
 	}
 
 	return result, nil
 }
-

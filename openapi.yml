@@ -36,8 +36,8 @@ paths:
         - batch
       summary: 인기 상품 적재
       description: |
-        AliExpress 인기 상품을 조회하여 hot_product, product, sku 테이블에 적재합니다.
-        이미 존재하는 상품은 product insert를 건너뛰고, 신규 상품만 SKU까지 함께 적재합니다.
+        AliExpress 인기 상품을 조회하여 hot_product, product 테이블에 적재합니다.
+        이미 존재하는 상품은 product insert를 건너뜁니다. SKU는 별도 enrich-skus 엔드포인트로 적재합니다.
       operationId: loadHotProducts
       requestBody:
         required: false
@@ -46,20 +46,14 @@ paths:
             schema:
               $ref: '#/components/schemas/HotProductLoadRequest'
       responses:
-        '200':
-          description: 인기 상품 적재 완료
+        '202':
+          description: 인기 상품 적재 작업 시작됨
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HotProductLoadResponse'
+                $ref: '#/components/schemas/AcceptedMessageResponse'
         '400':
           description: 잘못된 요청
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: 적재 실패
           content:
             application/json:
               schema:
@@ -436,15 +430,6 @@ components:
         keywords:
           type: string
           description: 검색 키워드
-        page_no:
-          type: integer
-          description: 시작 페이지 번호
-        page_size:
-          type: integer
-          description: 페이지당 상품 수 (최대 50)
-        max_pages:
-          type: integer
-          description: 최대 조회 페이지 수
         sort:
           type: string
           description: 정렬 기준
@@ -454,15 +439,6 @@ components:
         max_sale_price:
           type: string
           description: 최대 가격
-        ship_to_country:
-          type: string
-          description: 배송 국가 (기본 KR)
-        target_currency:
-          type: string
-          description: 대상 통화 (기본 KRW)
-        target_language:
-          type: string
-          description: 대상 언어 (기본 KO)
     HotProductLoadResponse:
       allOf:
         - $ref: '#/components/schemas/APIResponse'
@@ -474,7 +450,6 @@ components:
                 - requested_count
                 - hot_product_saved
                 - product_saved_count
-                - sku_saved_count
                 - skipped_count
               properties:
                 requested_count:
@@ -489,15 +464,9 @@ components:
                 product_saved_count:
                   type: integer
                   description: product 테이블에 신규 저장된 수
-                sku_saved_count:
-                  type: integer
-                  description: SKU 저장된 수
                 skipped_count:
                   type: integer
                   description: 이미 존재하여 건너뛴 상품 수
-                sku_fail_count:
-                  type: integer
-                  description: SKU 적재 실패 수
     PriceUpdateAcceptedResponse:
       allOf:
         - $ref: '#/components/schemas/APIResponse'

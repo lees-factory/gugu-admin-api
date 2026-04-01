@@ -16,14 +16,7 @@ func NewHotProductScheduler(loader *HotProductLoader, interval time.Duration) *H
 	return &HotProductScheduler{
 		loader:   loader,
 		interval: interval,
-		input: HotProductLoadInput{
-			PageNo:         1,
-			PageSize:       50,
-			MaxPages:       5,
-			TargetCurrency: "KRW",
-			TargetLanguage: "KO",
-			ShipToCountry:  "KR",
-		},
+		input:    HotProductLoadInput{},
 	}
 }
 
