@@ -66,7 +66,7 @@ func (ctrl *Controller) LoadHotProducts(c *gin.Context) {
 		return
 	}
 
-	result, err := ctrl.hotProductLoader.LoadHotProducts(c.Request.Context(), batch.HotProductLoadInput{
+	input := batch.HotProductLoadInput{
 		CategoryIDs:    req.CategoryIDs,
 		Keywords:       req.Keywords,
 		PageNo:         req.PageNo,
@@ -78,13 +78,22 @@ func (ctrl *Controller) LoadHotProducts(c *gin.Context) {
 		ShipToCountry:  req.ShipToCountry,
 		TargetCurrency: req.TargetCurrency,
 		TargetLanguage: req.TargetLanguage,
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.ErrorFromCode("HOT_PRODUCT_LOAD_FAILED", err.Error()))
-		return
 	}
 
-	c.JSON(http.StatusOK, response.SuccessWithData(result))
+	go func() {
+		ctx := context.Background()
+		result, err := ctrl.hotProductLoader.LoadHotProducts(ctx, input)
+		if err != nil {
+			log.Printf("hot product load failed: %v", err)
+			return
+		}
+		log.Printf("hot product load completed: requested=%d hot_saved=%d product_saved=%d sku_saved=%d skipped=%d",
+			result.RequestedCount, result.HotProductSaved, result.ProductSavedCount, result.SKUSavedCount, result.SkippedCount)
+	}()
+
+	c.JSON(http.StatusAccepted, response.SuccessWithData(gin.H{
+		"message": "hot product load started",
+	}))
 }
 
 func (ctrl *Controller) EnrichHotProducts(c *gin.Context) {

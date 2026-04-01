@@ -17,6 +17,8 @@ type Config struct {
 	PriceUpdateScheduleInterval time.Duration
 	TokenRefreshEnabled         bool
 	TokenRefreshInterval        time.Duration
+	HotProductScheduleEnabled   bool
+	HotProductScheduleInterval  time.Duration
 }
 
 func Load() Config {
@@ -31,6 +33,8 @@ func Load() Config {
 		PriceUpdateScheduleInterval: getEnvAsDuration("PRICE_UPDATE_SCHEDULE_INTERVAL", 24*time.Hour),
 		TokenRefreshEnabled:         getEnvAsBool("TOKEN_REFRESH_SCHEDULE_ENABLED", false),
 		TokenRefreshInterval:        getEnvAsDuration("TOKEN_REFRESH_SCHEDULE_INTERVAL", 12*time.Hour),
+		HotProductScheduleEnabled:   getEnvAsBool("HOT_PRODUCT_SCHEDULE_ENABLED", false),
+		HotProductScheduleInterval:  getEnvAsDuration("HOT_PRODUCT_SCHEDULE_INTERVAL", 24*time.Hour),
 	}
 }
 

@@ -118,6 +118,13 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 		)
 		tokenRefreshScheduler.Start(context.Background())
 	}
+	if cfg.HotProductScheduleEnabled {
+		hotProductScheduler := batch.NewHotProductScheduler(
+			hotProductLoader,
+			cfg.HotProductScheduleInterval,
+		)
+		hotProductScheduler.Start(context.Background())
+	}
 
 	// Controllers
 	batchController := batchctrl.NewController(skuEnricher, priceUpdater, hotProductLoader)
