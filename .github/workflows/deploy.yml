@@ -1,0 +1,52 @@
+name: Deploy to Lightsail
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup Go
+        uses: actions/setup-go@v6.2.0
+        with:
+          go-version: '1.26'
+
+      - name: Build
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: 0
+        run: go build -o gugu-admin-api ./cmd/api
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.LIGHTSAIL_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Transfer files
+        run: |
+          scp -i ~/.ssh/deploy_key \
+            gugu-admin-api \
+            ${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }}:/home/ubuntu/gugu-admin-api/gugu-admin-api.new
+
+          scp -i ~/.ssh/deploy_key \
+            docs/admin-openapi.yml \
+            ${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }}:/home/ubuntu/gugu-admin-api/admin-openapi.yml
+
+          scp -i ~/.ssh/deploy_key \
+            scripts/deploy.sh \
+            ${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }}:/home/ubuntu/gugu-admin-api/deploy.sh
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            ${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }} \
+            "chmod +x /home/ubuntu/gugu-admin-api/deploy.sh && /home/ubuntu/gugu-admin-api/deploy.sh"
