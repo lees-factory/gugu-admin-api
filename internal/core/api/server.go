@@ -34,6 +34,7 @@ func NewServer(cfg config.Config, db *sql.DB) *gin.Engine {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 	r.GET("/openapi.yml", func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
 		path := findOpenAPIFile()
 		if path == "" {
 			c.String(http.StatusNotFound, "openapi.yml not found")
