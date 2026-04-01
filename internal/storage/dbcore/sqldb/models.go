@@ -47,6 +47,7 @@ type GuguHotProduct struct {
 	Title             string    `json:"title"`
 	ImageUrl          string    `json:"image_url"`
 	ProductUrl        string    `json:"product_url"`
+	PromotionLink     string    `json:"promotion_link"`
 	SalePrice         string    `json:"sale_price"`
 	Currency          string    `json:"currency"`
 	CollectedDate     time.Time `json:"collected_date"`

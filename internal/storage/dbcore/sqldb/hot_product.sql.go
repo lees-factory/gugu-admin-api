@@ -26,9 +26,9 @@ func (q *Queries) DeleteHotProductsBefore(ctx context.Context, collectedDate tim
 const insertHotProduct = `-- name: InsertHotProduct :exec
 INSERT INTO gugu.hot_product (
     id, external_product_id, title, image_url, product_url,
-    sale_price, currency, collected_date, created_at
+    promotion_link, sale_price, currency, collected_date, created_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 ) ON CONFLICT (external_product_id, collected_date) DO NOTHING
 `
 
@@ -38,6 +38,7 @@ type InsertHotProductParams struct {
 	Title             string    `json:"title"`
 	ImageUrl          string    `json:"image_url"`
 	ProductUrl        string    `json:"product_url"`
+	PromotionLink     string    `json:"promotion_link"`
 	SalePrice         string    `json:"sale_price"`
 	Currency          string    `json:"currency"`
 	CollectedDate     time.Time `json:"collected_date"`
@@ -51,6 +52,7 @@ func (q *Queries) InsertHotProduct(ctx context.Context, arg InsertHotProductPara
 		arg.Title,
 		arg.ImageUrl,
 		arg.ProductUrl,
+		arg.PromotionLink,
 		arg.SalePrice,
 		arg.Currency,
 		arg.CollectedDate,
@@ -61,7 +63,7 @@ func (q *Queries) InsertHotProduct(ctx context.Context, arg InsertHotProductPara
 
 const listHotProductsByDate = `-- name: ListHotProductsByDate :many
 SELECT id, external_product_id, title, image_url, product_url,
-       sale_price, currency, collected_date, created_at
+       promotion_link, sale_price, currency, collected_date, created_at
 FROM gugu.hot_product
 WHERE collected_date = $1
 ORDER BY created_at
@@ -82,6 +84,7 @@ func (q *Queries) ListHotProductsByDate(ctx context.Context, collectedDate time.
 			&i.Title,
 			&i.ImageUrl,
 			&i.ProductUrl,
+			&i.PromotionLink,
 			&i.SalePrice,
 			&i.Currency,
 			&i.CollectedDate,
@@ -102,7 +105,7 @@ func (q *Queries) ListHotProductsByDate(ctx context.Context, collectedDate time.
 
 const listHotProductsLatest = `-- name: ListHotProductsLatest :many
 SELECT id, external_product_id, title, image_url, product_url,
-       sale_price, currency, collected_date, created_at
+       promotion_link, sale_price, currency, collected_date, created_at
 FROM gugu.hot_product
 WHERE collected_date = (SELECT MAX(collected_date) FROM gugu.hot_product)
 ORDER BY created_at
@@ -123,6 +126,7 @@ func (q *Queries) ListHotProductsLatest(ctx context.Context) ([]GuguHotProduct, 
 			&i.Title,
 			&i.ImageUrl,
 			&i.ProductUrl,
+			&i.PromotionLink,
 			&i.SalePrice,
 			&i.Currency,
 			&i.CollectedDate,

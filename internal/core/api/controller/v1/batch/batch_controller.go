@@ -87,8 +87,8 @@ func (ctrl *Controller) LoadHotProducts(c *gin.Context) {
 			log.Printf("hot product load failed: %v", err)
 			return
 		}
-		log.Printf("hot product load completed: requested=%d hot_saved=%d product_saved=%d sku_saved=%d skipped=%d",
-			result.RequestedCount, result.HotProductSaved, result.ProductSavedCount, result.SKUSavedCount, result.SkippedCount)
+		log.Printf("hot product load completed: requested=%d hot_saved=%d product_saved=%d skipped=%d",
+			result.RequestedCount, result.HotProductSaved, result.ProductSavedCount, result.SkippedCount)
 	}()
 
 	c.JSON(http.StatusAccepted, response.SuccessWithData(gin.H{

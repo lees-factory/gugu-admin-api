@@ -27,6 +27,7 @@ type HotProduct struct {
 	ProductTitle            string
 	ProductMainImageURL     string
 	ProductDetailURL        string
+	PromotionLink           string
 	SalePrice               string
 	SalePriceCurrency       string
 	TargetSalePrice         string

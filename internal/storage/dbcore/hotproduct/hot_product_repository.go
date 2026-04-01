@@ -14,6 +14,7 @@ type HotProductRow struct {
 	Title             string
 	ImageURL          string
 	ProductURL        string
+	PromotionLink     string
 	SalePrice         string
 	Currency          string
 	CollectedDate     time.Time
@@ -35,6 +36,7 @@ func (r *SQLCRepository) Insert(ctx context.Context, row HotProductRow) error {
 		Title:             row.Title,
 		ImageUrl:          row.ImageURL,
 		ProductUrl:        row.ProductURL,
+		PromotionLink:     row.PromotionLink,
 		SalePrice:         row.SalePrice,
 		Currency:          row.Currency,
 		CollectedDate:     row.CollectedDate,
@@ -71,6 +73,7 @@ func toRows(rows []sqldb.GuguHotProduct) []HotProductRow {
 			Title:             row.Title,
 			ImageURL:          row.ImageUrl,
 			ProductURL:        row.ProductUrl,
+			PromotionLink:     row.PromotionLink,
 			SalePrice:         row.SalePrice,
 			Currency:          row.Currency,
 			CollectedDate:     row.CollectedDate,

@@ -149,6 +149,7 @@ func (c *PlatformProductClient) QueryHotProducts(ctx context.Context, req HotPro
 			ProductTitle:            item.ProductTitle,
 			ProductMainImageURL:     item.ProductMainImageURL,
 			ProductDetailURL:        item.ProductDetailURL,
+			PromotionLink:           item.PromotionLink,
 			SalePrice:               item.SalePrice,
 			SalePriceCurrency:       item.SalePriceCurrency,
 			TargetSalePrice:         item.TargetSalePrice,

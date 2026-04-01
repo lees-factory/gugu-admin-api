@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand/v2"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ljj/gugu-admin-api/internal/clients/aliexpress"
@@ -82,27 +83,50 @@ func (e *SKUEnricher) EnrichAll(ctx context.Context) (*EnrichResult, error) {
 func (e *SKUEnricher) enrichProducts(ctx context.Context, products []domainproduct.Product) (*EnrichResult, error) {
 	result := &EnrichResult{TotalProducts: len(products)}
 
+	const maxWorkers = 5
+	sem := make(chan struct{}, maxWorkers)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
 	for i, p := range products {
 		if ctx.Err() != nil {
-			return result, ctx.Err()
+			break
 		}
 
-		log.Printf("[%d/%d] enriching product: %s (external: %s)", i+1, len(products), p.ID, p.ExternalProductID)
+		wg.Add(1)
+		go func(idx int, prod domainproduct.Product) {
+			defer wg.Done()
 
-		added, err := e.enrichSingleFromDropshipping(ctx, p)
-		if err != nil {
-			log.Printf("[%d/%d] FAILED: %v", i+1, len(products), err)
-			result.FailCount++
-			continue
-		}
+			sem <- struct{}{}
+			defer func() { <-sem }()
 
-		log.Printf("[%d/%d] SUCCESS: %d SKUs upserted", i+1, len(products), added)
-		result.SuccessCount++
-		result.TotalSKUsAdded += added
+			if ctx.Err() != nil {
+				return
+			}
 
-		if i < len(products)-1 {
-			e.randomDelay()
-		}
+			log.Printf("[%d/%d] enriching product: %s (external: %s)", idx+1, len(products), prod.ID, prod.ExternalProductID)
+
+			added, err := e.enrichSingleFromDropshipping(ctx, prod)
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if err != nil {
+				log.Printf("[%d/%d] FAILED: %v", idx+1, len(products), err)
+				result.FailCount++
+				return
+			}
+
+			log.Printf("[%d/%d] SUCCESS: %d SKUs upserted", idx+1, len(products), added)
+			result.SuccessCount++
+			result.TotalSKUsAdded += added
+		}(i, p)
+	}
+
+	wg.Wait()
+
+	if ctx.Err() != nil {
+		return result, ctx.Err()
 	}
 
 	return result, nil

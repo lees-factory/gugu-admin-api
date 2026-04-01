@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS gugu.hot_product (
     title TEXT NOT NULL DEFAULT '',
     image_url TEXT NOT NULL DEFAULT '',
     product_url TEXT NOT NULL DEFAULT '',
+    promotion_link TEXT NOT NULL DEFAULT '',
     sale_price TEXT NOT NULL DEFAULT '',
     currency TEXT NOT NULL DEFAULT '',
     collected_date DATE NOT NULL DEFAULT CURRENT_DATE,
