@@ -313,20 +313,19 @@ func (c *PlatformProductClient) GetDropshippingProduct(ctx context.Context, req 
 		return nil, err
 	}
 
-	if apiResp.Result.BaseInfo == nil {
-		return nil, fmt.Errorf("dropshipping product response has no base info; rawBody=%s", truncateForError(resp.RawBody))
-	}
-
 	var skus []dsSKU
 	if apiResp.Result.SKUs != nil {
 		skus = apiResp.Result.SKUs.Items
 	}
 
 	detail := &DropshippingProductDetail{
-		ProductID:    apiResp.Result.BaseInfo.ProductID,
-		Subject:      apiResp.Result.BaseInfo.Subject,
-		CurrencyCode: apiResp.Result.BaseInfo.CurrencyCode,
-		SKUs:         make([]DropshippingSKU, len(skus)),
+		SKUs: make([]DropshippingSKU, len(skus)),
+	}
+
+	if apiResp.Result.BaseInfo != nil {
+		detail.ProductID = apiResp.Result.BaseInfo.ProductID
+		detail.Subject = apiResp.Result.BaseInfo.Subject
+		detail.CurrencyCode = apiResp.Result.BaseInfo.CurrencyCode
 	}
 
 	if apiResp.Result.Media != nil {
@@ -368,11 +367,15 @@ func (c *PlatformProductClient) GetDropshippingProduct(ctx context.Context, req 
 	return detail, nil
 }
 
+func hasDropshippingData(r *dropshippingAPIResponse) bool {
+	return r.Result.BaseInfo != nil || (r.Result.SKUs != nil && len(r.Result.SKUs.Items) > 0)
+}
+
 func parseDropshippingResponse(resp *PlatformResponse) (*dropshippingAPIResponse, error) {
 	// 1) resp.Result에 직접 파싱 시도
 	if len(resp.Result) > 0 && string(resp.Result) != "null" {
 		var apiResp dropshippingAPIResponse
-		if err := json.Unmarshal(resp.Result, &apiResp); err == nil && apiResp.Result.BaseInfo != nil {
+		if err := json.Unmarshal(resp.Result, &apiResp); err == nil && hasDropshippingData(&apiResp) {
 			return &apiResp, nil
 		}
 	}
@@ -380,7 +383,7 @@ func parseDropshippingResponse(resp *PlatformResponse) (*dropshippingAPIResponse
 	// 2) RawBody에서 top-level wrapper로 파싱 시도
 	if resp.RawBody != "" {
 		var topLevel dropshippingTopLevelResponse
-		if err := json.Unmarshal([]byte(resp.RawBody), &topLevel); err == nil && topLevel.Response.Result.BaseInfo != nil {
+		if err := json.Unmarshal([]byte(resp.RawBody), &topLevel); err == nil && hasDropshippingData(&topLevel.Response) {
 			return &topLevel.Response, nil
 		}
 
