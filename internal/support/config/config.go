@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -9,12 +8,7 @@ import (
 
 type Config struct {
 	Port                        string
-	DBHost                      string
-	DBPort                      string
-	DBUser                      string
-	DBPassword                  string
-	DBName                      string
-	DBSSLMode                   string
+	DatabaseURL                 string
 	AliExpressAppKey            string
 	AliExpressAppSecret         string
 	AliExpressDSAppKey          string
@@ -28,12 +22,7 @@ type Config struct {
 func Load() Config {
 	return Config{
 		Port:                        getEnvOrDefault("PORT", "8081"),
-		DBHost:                      getEnvOrDefault("DB_HOST", "localhost"),
-		DBPort:                      getEnvOrDefault("DB_PORT", "5432"),
-		DBUser:                      getEnvOrDefault("DB_USER", "postgres"),
-		DBPassword:                  getEnvOrDefault("DB_PASSWORD", "postgres"),
-		DBName:                      getEnvOrDefault("DB_NAME", "gugu"),
-		DBSSLMode:                   getEnvOrDefault("DB_SSL_MODE", "disable"),
+		DatabaseURL:                 getEnvOrDefault("DATABASE_URL", ""),
 		AliExpressAppKey:            getEnvOrDefault("ALIEXPRESS_APP_KEY", ""),
 		AliExpressAppSecret:         getEnvOrDefault("ALIEXPRESS_APP_SECRET", ""),
 		AliExpressDSAppKey:          getEnvOrDefault("ALIEXPRESS_DS_APP_KEY", ""),
@@ -46,10 +35,7 @@ func Load() Config {
 }
 
 func (c Config) DSN() string {
-	return fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSLMode,
-	)
+	return c.DatabaseURL
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
