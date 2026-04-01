@@ -1,0 +1,12 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "internal/storage/dbcore/sqlc/query"
+    schema: "internal/storage/dbcore/sqlc/schema"
+    gen:
+      go:
+        package: "sqldb"
+        out: "internal/storage/dbcore/sqldb"
+        sql_package: "database/sql"
+        emit_json_tags: true
+        emit_empty_slices: true

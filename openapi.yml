@@ -1,0 +1,716 @@
+openapi: 3.1.0
+info:
+  title: Gugu Admin API
+  version: 0.1.0
+  description: |
+    Admin batch API specification for SKU enrichment, price updates, and AliExpress token management.
+servers:
+  - url: http://localhost:8081
+    description: Local development server
+tags:
+  - name: system
+    description: System endpoints
+  - name: batch
+    description: Admin batch endpoints
+  - name: token
+    description: AliExpress OAuth token management
+paths:
+  /health:
+    get:
+      tags:
+        - system
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /v1/batch/load-hot-products:
+    post:
+      tags:
+        - batch
+      summary: Load hot products into product table
+      operationId: loadHotProducts
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HotProductLoadRequest'
+      responses:
+        '200':
+          description: Hot products loaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HotProductLoadResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Load failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/batch/enrich-skus/hot-products:
+    post:
+      tags:
+        - batch
+      summary: Start SKU enrichment for hot products
+      operationId: enrichHotProducts
+      responses:
+        '202':
+          description: SKU enrichment batch accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedMessageResponse'
+  /v1/batch/enrich-skus/all:
+    post:
+      tags:
+        - batch
+      summary: Start SKU enrichment for all products
+      operationId: enrichAllProducts
+      responses:
+        '202':
+          description: SKU enrichment batch accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedMessageResponse'
+  /v1/batch/update-prices:
+    post:
+      tags:
+        - batch
+      summary: Start price update batch
+      operationId: updatePrices
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PriceUpdateRequest'
+            examples:
+              allProducts:
+                summary: Run for all products
+                value: {}
+              hotProductsOnly:
+                summary: Run for hot products only
+                value:
+                  collection_source: HOT_PRODUCT_QUERY
+                  requested_by: admin
+              filteredByMarket:
+                summary: Run for AliExpress products collected before a specific time
+                value:
+                  market: ALIEXPRESS
+                  collected_before: '2026-04-01T00:00:00Z'
+      responses:
+        '202':
+          description: Price update batch accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceUpdateAcceptedResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Preview failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/batch/status:
+    get:
+      tags:
+        - batch
+      summary: Get latest batch status
+      operationId: getBatchStatus
+      parameters:
+        - in: query
+          name: job_type
+          required: false
+          schema:
+            type: string
+            enum:
+              - PRICE_UPDATE
+      responses:
+        '200':
+          description: Latest batch status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchStatusResponse'
+        '400':
+          description: Invalid job type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/aliexpress/token/generate:
+    post:
+      tags:
+        - token
+      summary: Generate access token from OAuth code
+      description: |
+        Exchange an OAuth authorization code for access/refresh tokens.
+        The code is obtained from the AliExpress seller authorization callback URL.
+      operationId: generateToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenGenerateRequest'
+            examples:
+              affiliate:
+                summary: Generate affiliate token
+                value:
+                  code: '3_500102_JxZ05Ux3cnnSSUm6dCxYg6Q26'
+                  app_type: AFFILIATE
+              dropshipping:
+                summary: Generate dropshipping token
+                value:
+                  code: '3_500102_abc123'
+                  app_type: DROPSHIPPING
+      responses:
+        '200':
+          description: Token generated and saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResultResponse'
+        '400':
+          description: Invalid request or unsupported app_type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Token generation or save failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/aliexpress/token/refresh:
+    post:
+      tags:
+        - token
+      summary: Manually refresh access token
+      description: |
+        Refresh the access token using the stored refresh token.
+        Normally handled by the automatic scheduler, but can be triggered manually.
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+            examples:
+              affiliate:
+                summary: Refresh affiliate token
+                value:
+                  app_type: AFFILIATE
+      responses:
+        '200':
+          description: Token refreshed and saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResultResponse'
+        '400':
+          description: Invalid request or unsupported app_type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existing token found for app_type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Token refresh or save failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/aliexpress/token/status:
+    get:
+      tags:
+        - token
+      summary: Get token status
+      description: |
+        Returns the current status of stored tokens.
+        Without app_type parameter, returns status for all app types.
+      operationId: getTokenStatus
+      parameters:
+        - in: query
+          name: app_type
+          required: false
+          schema:
+            type: string
+            enum:
+              - AFFILIATE
+              - DROPSHIPPING
+      responses:
+        '200':
+          description: Token status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenStatusResponse'
+        '500':
+          description: Token lookup failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/users:
+    get:
+      tags:
+        - batch
+      summary: List admin users
+      operationId: listUsers
+      parameters:
+        - in: query
+          name: search
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: plan
+          required: false
+          schema:
+            type: string
+            enum:
+              - FREE
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - INACTIVE
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: User list response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+        '500':
+          description: Failed to list users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: ok
+    APIResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          description: Successful response payload
+        error:
+          $ref: '#/components/schemas/ErrorPayload'
+    ErrorPayload:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    ErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIResponse'
+        - type: object
+          properties:
+            status:
+              type: string
+              enum:
+                - error
+            error:
+              $ref: '#/components/schemas/ErrorPayload'
+    AcceptedMessageResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+    PriceUpdateRequest:
+      type: object
+      properties:
+        collection_source:
+          type: string
+          example: HOT_PRODUCT_QUERY
+        market:
+          type: string
+          enum:
+            - ALIEXPRESS
+            - COUPANG
+        product_ids:
+          type: array
+          items:
+            type: string
+        collected_before:
+          type: string
+          format: date-time
+        force:
+          type: boolean
+        requested_by:
+          type: string
+    HotProductLoadRequest:
+      type: object
+      properties:
+        category_ids:
+          type: array
+          items:
+            type: string
+        keywords:
+          type: string
+        page_no:
+          type: integer
+        page_size:
+          type: integer
+        sort:
+          type: string
+        min_sale_price:
+          type: string
+        max_sale_price:
+          type: string
+        ship_to_country:
+          type: string
+        target_currency:
+          type: string
+        target_language:
+          type: string
+    HotProductLoadResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - requested_count
+                - saved_count
+              properties:
+                requested_count:
+                  type: integer
+                saved_count:
+                  type: integer
+    PriceUpdateAcceptedResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - message
+                - job
+              properties:
+                message:
+                  type: string
+                job:
+                  $ref: '#/components/schemas/BatchJobStatus'
+    BatchStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIResponse'
+        - type: object
+          properties:
+            data:
+              oneOf:
+                - $ref: '#/components/schemas/BatchJobStatus'
+                - type: object
+                  properties:
+                    job_type:
+                      type: string
+                    status:
+                      type:
+                        - string
+                        - 'null'
+    BatchJobStatus:
+      type: object
+      required:
+        - job_type
+        - status
+        - trigger_type
+        - filter
+        - requested_at
+        - total_count
+        - success_count
+        - fail_count
+        - skipped_count
+      properties:
+        job_type:
+          type: string
+          enum:
+            - PRICE_UPDATE
+        status:
+          type: string
+          enum:
+            - QUEUED
+            - RUNNING
+            - COMPLETED
+            - FAILED
+        trigger_type:
+          type: string
+          enum:
+            - MANUAL
+            - SCHEDULED
+        filter:
+          $ref: '#/components/schemas/PriceUpdateFilter'
+        requested_at:
+          type: string
+          format: date-time
+        started_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        finished_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        total_count:
+          type: integer
+        success_count:
+          type: integer
+        fail_count:
+          type: integer
+        skipped_count:
+          type: integer
+        last_error:
+          type: string
+    PriceUpdateFilter:
+      type: object
+      properties:
+        collection_source:
+          type: string
+        market:
+          type: string
+          enum:
+            - ALIEXPRESS
+            - COUPANG
+        product_ids:
+          type: array
+          items:
+            type: string
+        collected_before:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        force:
+          type: boolean
+    TokenGenerateRequest:
+      type: object
+      required:
+        - code
+        - app_type
+      properties:
+        code:
+          type: string
+          description: OAuth authorization code from AliExpress callback
+        app_type:
+          type: string
+          enum:
+            - AFFILIATE
+            - DROPSHIPPING
+          description: Which AliExpress app to generate the token for
+    TokenRefreshRequest:
+      type: object
+      required:
+        - app_type
+      properties:
+        app_type:
+          type: string
+          enum:
+            - AFFILIATE
+            - DROPSHIPPING
+    TokenResultResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - seller_id
+                - app_type
+                - access_token_expires_at
+              properties:
+                seller_id:
+                  type: string
+                app_type:
+                  type: string
+                  enum:
+                    - AFFILIATE
+                    - DROPSHIPPING
+                access_token_expires_at:
+                  type: string
+                  format: date-time
+                refresh_token_expires_at:
+                  type:
+                    - string
+                    - 'null'
+                  format: date-time
+    TokenStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - tokens
+              properties:
+                tokens:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TokenStatusEntry'
+    TokenStatusEntry:
+      type: object
+      required:
+        - app_type
+        - status
+      properties:
+        app_type:
+          type: string
+          enum:
+            - AFFILIATE
+            - DROPSHIPPING
+        seller_id:
+          type: string
+        user_nick:
+          type: string
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - EXPIRING_SOON
+            - EXPIRED
+            - NOT_FOUND
+        access_token_expires_at:
+          type: string
+          format: date-time
+        refresh_token_expires_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        last_refreshed_at:
+          type: string
+          format: date-time
+    AdminUser:
+      type: object
+      required:
+        - id
+        - email
+        - display_name
+        - plan
+        - status
+        - email_verified
+        - tracked_item_count
+        - created_at
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        display_name:
+          type: string
+        plan:
+          type: string
+          enum:
+            - FREE
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+        email_verified:
+          type: boolean
+        tracked_item_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        last_login_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    UserListResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - total_count
+                - page
+                - page_size
+                - items
+              properties:
+                total_count:
+                  type: integer
+                page:
+                  type: integer
+                page_size:
+                  type: integer
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/AdminUser'
