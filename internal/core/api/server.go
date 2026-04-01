@@ -121,6 +121,7 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 	if cfg.HotProductScheduleEnabled {
 		hotProductScheduler := batch.NewHotProductScheduler(
 			hotProductLoader,
+			skuEnricher,
 			cfg.HotProductScheduleInterval,
 		)
 		hotProductScheduler.Start(context.Background())

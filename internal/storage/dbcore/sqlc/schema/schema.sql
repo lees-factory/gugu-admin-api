@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS gugu.user_tracked_item (
 
 CREATE TABLE IF NOT EXISTS gugu.aliexpress_seller_token (
     id TEXT PRIMARY KEY,
-    seller_id TEXT NOT NULL UNIQUE,
+    seller_id TEXT NOT NULL,
     havana_id TEXT NOT NULL DEFAULT '',
     app_user_id TEXT NOT NULL DEFAULT '',
     user_nick TEXT NOT NULL DEFAULT '',

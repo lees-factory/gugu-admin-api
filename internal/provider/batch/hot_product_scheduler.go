@@ -7,16 +7,18 @@ import (
 )
 
 type HotProductScheduler struct {
-	loader   *HotProductLoader
-	interval time.Duration
-	input    HotProductLoadInput
+	loader      *HotProductLoader
+	skuEnricher *SKUEnricher
+	interval    time.Duration
+	input       HotProductLoadInput
 }
 
-func NewHotProductScheduler(loader *HotProductLoader, interval time.Duration) *HotProductScheduler {
+func NewHotProductScheduler(loader *HotProductLoader, skuEnricher *SKUEnricher, interval time.Duration) *HotProductScheduler {
 	return &HotProductScheduler{
-		loader:   loader,
-		interval: interval,
-		input:    HotProductLoadInput{},
+		loader:      loader,
+		skuEnricher: skuEnricher,
+		interval:    interval,
+		input:       HotProductLoadInput{},
 	}
 }
 
@@ -47,10 +49,23 @@ func (s *HotProductScheduler) Start(ctx context.Context) {
 func (s *HotProductScheduler) runOnce(ctx context.Context) {
 	result, err := s.loader.LoadHotProducts(ctx, s.input)
 	if err != nil {
-		log.Printf("hot product scheduler failed: %v", err)
+		log.Printf("hot product scheduler load failed: %v", err)
 		return
 	}
 
-	log.Printf("hot product scheduler completed: requested=%d hot_saved=%d product_saved=%d skipped=%d",
+	log.Printf("hot product scheduler load completed: requested=%d hot_saved=%d product_saved=%d skipped=%d",
 		result.RequestedCount, result.HotProductSaved, result.ProductSavedCount, result.SkippedCount)
+
+	if s.skuEnricher == nil {
+		return
+	}
+
+	enrichResult, err := s.skuEnricher.EnrichHotProducts(ctx)
+	if err != nil {
+		log.Printf("hot product scheduler enrich failed: %v", err)
+		return
+	}
+
+	log.Printf("hot product scheduler enrich completed: total=%d success=%d fail=%d skus_added=%d",
+		enrichResult.TotalProducts, enrichResult.SuccessCount, enrichResult.FailCount, enrichResult.TotalSKUsAdded)
 }

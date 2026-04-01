@@ -6,7 +6,6 @@ import (
 	"log"
 	"math/rand/v2"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/ljj/gugu-admin-api/internal/clients/aliexpress"
@@ -83,50 +82,27 @@ func (e *SKUEnricher) EnrichAll(ctx context.Context) (*EnrichResult, error) {
 func (e *SKUEnricher) enrichProducts(ctx context.Context, products []domainproduct.Product) (*EnrichResult, error) {
 	result := &EnrichResult{TotalProducts: len(products)}
 
-	const maxWorkers = 5
-	sem := make(chan struct{}, maxWorkers)
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-
 	for i, p := range products {
 		if ctx.Err() != nil {
-			break
+			return result, ctx.Err()
 		}
 
-		wg.Add(1)
-		go func(idx int, prod domainproduct.Product) {
-			defer wg.Done()
+		log.Printf("[%d/%d] enriching product: %s (external: %s)", i+1, len(products), p.ID, p.ExternalProductID)
 
-			sem <- struct{}{}
-			defer func() { <-sem }()
+		added, err := e.enrichSingleFromDropshipping(ctx, p)
+		if err != nil {
+			log.Printf("[%d/%d] FAILED: %v", i+1, len(products), err)
+			result.FailCount++
+			continue
+		}
 
-			if ctx.Err() != nil {
-				return
-			}
+		log.Printf("[%d/%d] SUCCESS: %d SKUs upserted", i+1, len(products), added)
+		result.SuccessCount++
+		result.TotalSKUsAdded += added
 
-			log.Printf("[%d/%d] enriching product: %s (external: %s)", idx+1, len(products), prod.ID, prod.ExternalProductID)
-
-			added, err := e.enrichSingleFromDropshipping(ctx, prod)
-
-			mu.Lock()
-			defer mu.Unlock()
-
-			if err != nil {
-				log.Printf("[%d/%d] FAILED: %v", idx+1, len(products), err)
-				result.FailCount++
-				return
-			}
-
-			log.Printf("[%d/%d] SUCCESS: %d SKUs upserted", idx+1, len(products), added)
-			result.SuccessCount++
-			result.TotalSKUsAdded += added
-		}(i, p)
-	}
-
-	wg.Wait()
-
-	if ctx.Err() != nil {
-		return result, ctx.Err()
+		if i < len(products)-1 {
+			e.randomDelay()
+		}
 	}
 
 	return result, nil
@@ -142,13 +118,24 @@ func (e *SKUEnricher) enrichSingleFromDropshipping(ctx context.Context, p domain
 	for ci, currency := range enum.SupportedCurrencies {
 		lang := enum.LanguageForCurrency(currency)
 
-		detail, err := e.aliexpressClient.GetDropshippingProduct(ctx, aliexpress.DropshippingProductRequest{
-			ProductID:             p.ExternalProductID,
-			ShipToCountry:         "KR",
-			TargetCurrency:        currency,
-			TargetLanguage:        lang,
-			RemovePersonalBenefit: true,
-		})
+		var detail *aliexpress.DropshippingProductDetail
+		var err error
+		for attempt := 0; attempt < 3; attempt++ {
+			detail, err = e.aliexpressClient.GetDropshippingProduct(ctx, aliexpress.DropshippingProductRequest{
+				ProductID:             p.ExternalProductID,
+				ShipToCountry:         "KR",
+				TargetCurrency:        currency,
+				TargetLanguage:        lang,
+				RemovePersonalBenefit: true,
+			})
+			if err != nil && strings.Contains(err.Error(), "AppApiCallLimit") {
+				wait := 10 * time.Second
+				log.Printf("dropshipping %s currency=%s: rate limited, waiting %s (attempt %d/3)", p.ExternalProductID, currency, wait, attempt+1)
+				time.Sleep(wait)
+				continue
+			}
+			break
+		}
 		if err != nil {
 			log.Printf("dropshipping %s currency=%s: %v", p.ExternalProductID, currency, err)
 			continue
