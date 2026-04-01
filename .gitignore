@@ -1,0 +1,6 @@
+docs/
+docs/**
+.env
+.env.**
+
+.idea
