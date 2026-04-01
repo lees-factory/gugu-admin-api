@@ -239,10 +239,18 @@ func (c *PlatformProductClient) GetAffiliateProductDetails(ctx context.Context, 
 
 type dropshippingAPIResponse struct {
 	Result struct {
-		BaseInfo *dsBaseInfo `json:"ae_item_base_info_dto"`
-		SKUs     []dsSKU     `json:"ae_item_sku_info_dtos"`
-		Media    *dsMedia    `json:"ae_multimedia_info_dto"`
+		BaseInfo *dsBaseInfo   `json:"ae_item_base_info_dto"`
+		SKUs     *dsSKUWrapper `json:"ae_item_sku_info_dtos"`
+		Media    *dsMedia      `json:"ae_multimedia_info_dto"`
 	} `json:"result"`
+}
+
+type dropshippingTopLevelResponse struct {
+	Response dropshippingAPIResponse `json:"aliexpress_ds_product_get_response"`
+}
+
+type dsSKUWrapper struct {
+	Items []dsSKU `json:"ae_item_sku_info_d_t_o"`
 }
 
 type dsBaseInfo struct {
@@ -252,13 +260,17 @@ type dsBaseInfo struct {
 }
 
 type dsSKU struct {
-	SKUID          string      `json:"sku_id"`
-	ID             string      `json:"id"`
-	SKUAttr        string      `json:"sku_attr"`
-	OfferSalePrice string      `json:"offer_sale_price"`
-	SKUPrice       string      `json:"sku_price"`
-	CurrencyCode   string      `json:"currency_code"`
-	Properties     []dsSKUProp `json:"ae_sku_property_dtos"`
+	SKUID          string            `json:"sku_id"`
+	ID             string            `json:"id"`
+	SKUAttr        string            `json:"sku_attr"`
+	OfferSalePrice string            `json:"offer_sale_price"`
+	SKUPrice       string            `json:"sku_price"`
+	CurrencyCode   string            `json:"currency_code"`
+	Properties     *dsSKUPropWrapper `json:"ae_sku_property_dtos"`
+}
+
+type dsSKUPropWrapper struct {
+	Items []dsSKUProp `json:"ae_sku_property_d_t_o"`
 }
 
 type dsSKUProp struct {
@@ -296,31 +308,37 @@ func (c *PlatformProductClient) GetDropshippingProduct(ctx context.Context, req 
 		return nil, fmt.Errorf("dropshipping product error: code=%s message=%s", resp.Code, resp.Message)
 	}
 
-	if len(resp.Result) == 0 || string(resp.Result) == "null" {
-		return nil, fmt.Errorf("dropshipping product response has empty result; rawBody=%s", truncateForError(resp.RawBody))
-	}
-
-	var apiResp dropshippingAPIResponse
-	if err := json.Unmarshal(resp.Result, &apiResp); err != nil {
-		return nil, fmt.Errorf("decode dropshipping product response: %w; raw=%s", err, truncateForError(string(resp.Result)))
+	apiResp, err := parseDropshippingResponse(resp)
+	if err != nil {
+		return nil, err
 	}
 
 	if apiResp.Result.BaseInfo == nil {
-		return nil, fmt.Errorf("dropshipping product response is empty")
+		return nil, fmt.Errorf("dropshipping product response has no base info; rawBody=%s", truncateForError(resp.RawBody))
+	}
+
+	var skus []dsSKU
+	if apiResp.Result.SKUs != nil {
+		skus = apiResp.Result.SKUs.Items
 	}
 
 	detail := &DropshippingProductDetail{
 		ProductID:    apiResp.Result.BaseInfo.ProductID,
 		Subject:      apiResp.Result.BaseInfo.Subject,
 		CurrencyCode: apiResp.Result.BaseInfo.CurrencyCode,
-		SKUs:         make([]DropshippingSKU, len(apiResp.Result.SKUs)),
+		SKUs:         make([]DropshippingSKU, len(skus)),
 	}
 
 	if apiResp.Result.Media != nil {
 		detail.ImageURLs = splitImageURLs(apiResp.Result.Media.ImageURLs)
 	}
 
-	for i, sku := range apiResp.Result.SKUs {
+	for i, sku := range skus {
+		var props []dsSKUProp
+		if sku.Properties != nil {
+			props = sku.Properties.Items
+		}
+
 		mapped := DropshippingSKU{
 			SKUID:          sku.SKUID,
 			OriginSKUID:    sku.ID,
@@ -329,17 +347,17 @@ func (c *PlatformProductClient) GetDropshippingProduct(ctx context.Context, req 
 			OfferSalePrice: sku.OfferSalePrice,
 			CurrencyCode:   sku.CurrencyCode,
 		}
-		if len(sku.Properties) > 0 {
-			mapped.ImageURL = strings.TrimSpace(sku.Properties[0].SKUImage)
-			mapped.Color = strings.TrimSpace(sku.Properties[0].SKUPropertyValue)
-			mapped.SKUName = strings.TrimSpace(sku.Properties[0].SKUPropertyValue)
+		if len(props) > 0 {
+			mapped.ImageURL = strings.TrimSpace(props[0].SKUImage)
+			mapped.Color = strings.TrimSpace(props[0].SKUPropertyValue)
+			mapped.SKUName = strings.TrimSpace(props[0].SKUPropertyValue)
 		}
-		if len(sku.Properties) > 1 {
-			mapped.Size = strings.TrimSpace(sku.Properties[1].SKUPropertyValue)
+		if len(props) > 1 {
+			mapped.Size = strings.TrimSpace(props[1].SKUPropertyValue)
 			if mapped.SKUName != "" {
 				mapped.SKUName += " / "
 			}
-			mapped.SKUName += strings.TrimSpace(sku.Properties[1].SKUPropertyValue)
+			mapped.SKUName += strings.TrimSpace(props[1].SKUPropertyValue)
 		}
 		if mapped.SKUName == "" {
 			mapped.SKUName = strings.TrimSpace(sku.SKUAttr)
@@ -348,6 +366,37 @@ func (c *PlatformProductClient) GetDropshippingProduct(ctx context.Context, req 
 	}
 
 	return detail, nil
+}
+
+func parseDropshippingResponse(resp *PlatformResponse) (*dropshippingAPIResponse, error) {
+	// 1) resp.Result에 직접 파싱 시도
+	if len(resp.Result) > 0 && string(resp.Result) != "null" {
+		var apiResp dropshippingAPIResponse
+		if err := json.Unmarshal(resp.Result, &apiResp); err == nil && apiResp.Result.BaseInfo != nil {
+			return &apiResp, nil
+		}
+	}
+
+	// 2) RawBody에서 top-level wrapper로 파싱 시도
+	if resp.RawBody != "" {
+		var topLevel dropshippingTopLevelResponse
+		if err := json.Unmarshal([]byte(resp.RawBody), &topLevel); err == nil && topLevel.Response.Result.BaseInfo != nil {
+			return &topLevel.Response, nil
+		}
+
+		// 3) error_response 확인
+		var errResp struct {
+			ErrorResponse struct {
+				Code string `json:"code"`
+				Msg  string `json:"msg"`
+			} `json:"error_response"`
+		}
+		if json.Unmarshal([]byte(resp.RawBody), &errResp) == nil && errResp.ErrorResponse.Code != "" {
+			return nil, fmt.Errorf("%s: %s", errResp.ErrorResponse.Code, errResp.ErrorResponse.Msg)
+		}
+	}
+
+	return nil, fmt.Errorf("decode dropshipping product response: unsupported structure; rawBody=%s", truncateForError(resp.RawBody))
 }
 
 func splitImageURLs(raw string) []string {
