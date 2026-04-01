@@ -129,9 +129,8 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 
 func findOpenAPIFile() string {
 	candidates := []string{
-		"docs/admin-openapi.yml",
-		"admin-openapi.yml",
-		"/home/ubuntu/gugu-admin-api/admin-openapi.yml",
+		"openapi.yml",
+		"/home/ubuntu/gugu-admin-api/openapi.yml",
 	}
 	for _, p := range candidates {
 		if _, err := os.Stat(p); err == nil {

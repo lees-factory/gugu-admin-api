@@ -38,8 +38,8 @@ jobs:
             ${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }}:/home/ubuntu/gugu-admin-api/gugu-admin-api.new
 
           scp -i ~/.ssh/deploy_key \
-            docs/admin-openapi.yml \
-            ${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }}:/home/ubuntu/gugu-admin-api/admin-openapi.yml
+            openapi.yml \
+            ${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }}:/home/ubuntu/gugu-admin-api/openapi.yml
 
           scp -i ~/.ssh/deploy_key \
             scripts/deploy.sh \

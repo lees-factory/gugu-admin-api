@@ -3,27 +3,29 @@ info:
   title: Gugu Admin API
   version: 0.1.0
   description: |
-    Admin batch API specification for SKU enrichment, price updates, and AliExpress token management.
+    SKU 적재, 가격 갱신, AliExpress 토큰 관리를 위한 어드민 배치 API 명세
 servers:
-  - url: http://localhost:8081
-    description: Local development server
+  - url: https://lees-admin.duckdns.org
+    description: 운영 서버
+  - url: http://localhost:8700
+    description: 로컬 개발 서버
 tags:
   - name: system
-    description: System endpoints
+    description: 시스템 엔드포인트
   - name: batch
-    description: Admin batch endpoints
+    description: 어드민 배치 엔드포인트
   - name: token
-    description: AliExpress OAuth token management
+    description: AliExpress OAuth 토큰 관리
 paths:
   /health:
     get:
       tags:
         - system
-      summary: Health check
+      summary: 헬스 체크
       operationId: healthCheck
       responses:
         '200':
-          description: Server is healthy
+          description: 서버 정상 동작 중
           content:
             application/json:
               schema:
@@ -32,7 +34,10 @@ paths:
     post:
       tags:
         - batch
-      summary: Load hot products into product table
+      summary: 인기 상품 적재
+      description: |
+        AliExpress 인기 상품을 조회하여 hot_product, product, sku 테이블에 적재합니다.
+        이미 존재하는 상품은 product insert를 건너뛰고, 신규 상품만 SKU까지 함께 적재합니다.
       operationId: loadHotProducts
       requestBody:
         required: false
@@ -42,19 +47,19 @@ paths:
               $ref: '#/components/schemas/HotProductLoadRequest'
       responses:
         '200':
-          description: Hot products loaded
+          description: 인기 상품 적재 완료
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HotProductLoadResponse'
         '400':
-          description: Invalid request
+          description: 잘못된 요청
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
-          description: Load failed
+          description: 적재 실패
           content:
             application/json:
               schema:
@@ -63,11 +68,12 @@ paths:
     post:
       tags:
         - batch
-      summary: Start SKU enrichment for hot products
+      summary: 인기 상품 SKU 보강
+      description: SKU가 없는 인기 상품에 대해 Dropshipping API로 SKU를 적재합니다.
       operationId: enrichHotProducts
       responses:
         '202':
-          description: SKU enrichment batch accepted
+          description: SKU 보강 작업 시작됨
           content:
             application/json:
               schema:
@@ -76,11 +82,12 @@ paths:
     post:
       tags:
         - batch
-      summary: Start SKU enrichment for all products
+      summary: 전체 상품 SKU 보강
+      description: 모든 상품에 대해 Dropshipping API로 SKU를 적재합니다.
       operationId: enrichAllProducts
       responses:
         '202':
-          description: SKU enrichment batch accepted
+          description: SKU 보강 작업 시작됨
           content:
             application/json:
               schema:
@@ -89,7 +96,11 @@ paths:
     post:
       tags:
         - batch
-      summary: Start price update batch
+      summary: 가격 갱신 배치
+      description: |
+        대상 상품들의 가격을 AliExpress API에서 다시 조회하여 갱신합니다.
+        KRW, USD 각각 조회하여 price_history와 snapshot을 기록합니다.
+        대표 통화(product.currency)인 경우에만 product 테이블의 current_price를 업데이트합니다.
       operationId: updatePrices
       requestBody:
         required: false
@@ -99,33 +110,33 @@ paths:
               $ref: '#/components/schemas/PriceUpdateRequest'
             examples:
               allProducts:
-                summary: Run for all products
+                summary: 전체 상품 대상
                 value: {}
               hotProductsOnly:
-                summary: Run for hot products only
+                summary: 인기 상품만
                 value:
                   collection_source: HOT_PRODUCT_QUERY
                   requested_by: admin
               filteredByMarket:
-                summary: Run for AliExpress products collected before a specific time
+                summary: 특정 시각 이전 수집된 AliExpress 상품
                 value:
                   market: ALIEXPRESS
                   collected_before: '2026-04-01T00:00:00Z'
       responses:
         '202':
-          description: Price update batch accepted
+          description: 가격 갱신 배치 시작됨
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PriceUpdateAcceptedResponse'
         '400':
-          description: Invalid request
+          description: 잘못된 요청
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
-          description: Preview failed
+          description: 프리뷰 실패
           content:
             application/json:
               schema:
@@ -134,7 +145,8 @@ paths:
     get:
       tags:
         - batch
-      summary: Get latest batch status
+      summary: 배치 상태 조회
+      description: 최근 실행된 배치 작업의 상태를 반환합니다.
       operationId: getBatchStatus
       parameters:
         - in: query
@@ -146,13 +158,13 @@ paths:
               - PRICE_UPDATE
       responses:
         '200':
-          description: Latest batch status
+          description: 배치 상태
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchStatusResponse'
         '400':
-          description: Invalid job type
+          description: 잘못된 작업 유형
           content:
             application/json:
               schema:
@@ -161,10 +173,10 @@ paths:
     post:
       tags:
         - token
-      summary: Generate access token from OAuth code
+      summary: OAuth 코드로 토큰 발급
       description: |
-        Exchange an OAuth authorization code for access/refresh tokens.
-        The code is obtained from the AliExpress seller authorization callback URL.
+        AliExpress 셀러 인증 콜백에서 받은 OAuth 코드를 access/refresh 토큰으로 교환합니다.
+        발급된 토큰은 DB에 저장됩니다.
       operationId: generateToken
       requestBody:
         required: true
@@ -174,30 +186,30 @@ paths:
               $ref: '#/components/schemas/TokenGenerateRequest'
             examples:
               affiliate:
-                summary: Generate affiliate token
+                summary: Affiliate 토큰 발급
                 value:
                   code: '3_500102_JxZ05Ux3cnnSSUm6dCxYg6Q26'
                   app_type: AFFILIATE
               dropshipping:
-                summary: Generate dropshipping token
+                summary: Dropshipping 토큰 발급
                 value:
                   code: '3_500102_abc123'
                   app_type: DROPSHIPPING
       responses:
         '200':
-          description: Token generated and saved
+          description: 토큰 발급 및 저장 완료
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenResultResponse'
         '400':
-          description: Invalid request or unsupported app_type
+          description: 잘못된 요청 또는 미지원 app_type
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
-          description: Token generation or save failed
+          description: 토큰 발급 또는 저장 실패
           content:
             application/json:
               schema:
@@ -206,10 +218,10 @@ paths:
     post:
       tags:
         - token
-      summary: Manually refresh access token
+      summary: 토큰 수동 갱신
       description: |
-        Refresh the access token using the stored refresh token.
-        Normally handled by the automatic scheduler, but can be triggered manually.
+        저장된 refresh_token을 사용하여 access_token을 갱신합니다.
+        보통 스케줄러가 자동으로 처리하지만 수동 트리거도 가능합니다.
       operationId: refreshToken
       requestBody:
         required: true
@@ -219,30 +231,30 @@ paths:
               $ref: '#/components/schemas/TokenRefreshRequest'
             examples:
               affiliate:
-                summary: Refresh affiliate token
+                summary: Affiliate 토큰 갱신
                 value:
                   app_type: AFFILIATE
       responses:
         '200':
-          description: Token refreshed and saved
+          description: 토큰 갱신 및 저장 완료
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenResultResponse'
         '400':
-          description: Invalid request or unsupported app_type
+          description: 잘못된 요청 또는 미지원 app_type
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: No existing token found for app_type
+          description: 해당 app_type의 토큰이 없음
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
-          description: Token refresh or save failed
+          description: 토큰 갱신 또는 저장 실패
           content:
             application/json:
               schema:
@@ -251,10 +263,10 @@ paths:
     get:
       tags:
         - token
-      summary: Get token status
+      summary: 토큰 상태 조회
       description: |
-        Returns the current status of stored tokens.
-        Without app_type parameter, returns status for all app types.
+        저장된 토큰의 현재 상태를 반환합니다.
+        app_type 파라미터 없이 호출하면 전체 앱 유형의 상태를 반환합니다.
       operationId: getTokenStatus
       parameters:
         - in: query
@@ -267,13 +279,13 @@ paths:
               - DROPSHIPPING
       responses:
         '200':
-          description: Token status
+          description: 토큰 상태
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenStatusResponse'
         '500':
-          description: Token lookup failed
+          description: 토큰 조회 실패
           content:
             application/json:
               schema:
@@ -282,7 +294,7 @@ paths:
     get:
       tags:
         - batch
-      summary: List admin users
+      summary: 사용자 목록 조회
       operationId: listUsers
       parameters:
         - in: query
@@ -319,13 +331,13 @@ paths:
             default: 20
       responses:
         '200':
-          description: User list response
+          description: 사용자 목록
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserListResponse'
         '500':
-          description: Failed to list users
+          description: 사용자 목록 조회 실패
           content:
             application/json:
               schema:
@@ -349,7 +361,7 @@ components:
           type: string
           example: success
         data:
-          description: Successful response payload
+          description: 성공 응답 데이터
         error:
           $ref: '#/components/schemas/ErrorPayload'
     ErrorPayload:
@@ -390,48 +402,67 @@ components:
       properties:
         collection_source:
           type: string
+          description: 수집 경로 필터
           example: HOT_PRODUCT_QUERY
         market:
           type: string
+          description: 마켓 필터
           enum:
             - ALIEXPRESS
             - COUPANG
         product_ids:
           type: array
+          description: 특정 상품 ID 목록
           items:
             type: string
         collected_before:
           type: string
+          description: 이 시각 이전에 수집된 상품만 대상
           format: date-time
         force:
           type: boolean
+          description: 강제 갱신 여부
         requested_by:
           type: string
+          description: 요청자
     HotProductLoadRequest:
       type: object
       properties:
         category_ids:
           type: array
+          description: 카테고리 ID 목록
           items:
             type: string
         keywords:
           type: string
+          description: 검색 키워드
         page_no:
           type: integer
+          description: 시작 페이지 번호
         page_size:
           type: integer
+          description: 페이지당 상품 수 (최대 50)
+        max_pages:
+          type: integer
+          description: 최대 조회 페이지 수
         sort:
           type: string
+          description: 정렬 기준
         min_sale_price:
           type: string
+          description: 최소 가격
         max_sale_price:
           type: string
+          description: 최대 가격
         ship_to_country:
           type: string
+          description: 배송 국가 (기본 KR)
         target_currency:
           type: string
+          description: 대상 통화 (기본 KRW)
         target_language:
           type: string
+          description: 대상 언어 (기본 KO)
     HotProductLoadResponse:
       allOf:
         - $ref: '#/components/schemas/APIResponse'
@@ -441,12 +472,32 @@ components:
               type: object
               required:
                 - requested_count
-                - saved_count
+                - hot_product_saved
+                - product_saved_count
+                - sku_saved_count
+                - skipped_count
               properties:
                 requested_count:
                   type: integer
-                saved_count:
+                  description: API에서 조회된 상품 수
+                processed_pages:
                   type: integer
+                  description: 처리된 페이지 수
+                hot_product_saved:
+                  type: integer
+                  description: hot_product 테이블에 저장된 수
+                product_saved_count:
+                  type: integer
+                  description: product 테이블에 신규 저장된 수
+                sku_saved_count:
+                  type: integer
+                  description: SKU 저장된 수
+                skipped_count:
+                  type: integer
+                  description: 이미 존재하여 건너뛴 상품 수
+                sku_fail_count:
+                  type: integer
+                  description: SKU 적재 실패 수
     PriceUpdateAcceptedResponse:
       allOf:
         - $ref: '#/components/schemas/APIResponse'
@@ -561,13 +612,13 @@ components:
       properties:
         code:
           type: string
-          description: OAuth authorization code from AliExpress callback
+          description: AliExpress 콜백에서 받은 OAuth 인증 코드
         app_type:
           type: string
           enum:
             - AFFILIATE
             - DROPSHIPPING
-          description: Which AliExpress app to generate the token for
+          description: 토큰을 발급할 AliExpress 앱 유형
     TokenRefreshRequest:
       type: object
       required:
@@ -636,6 +687,7 @@ components:
           type: string
         status:
           type: string
+          description: "ACTIVE: 정상 / EXPIRING_SOON: 곧 만료 / EXPIRED: 만료됨 / NOT_FOUND: 토큰 없음"
           enum:
             - ACTIVE
             - EXPIRING_SOON
