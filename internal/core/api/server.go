@@ -114,6 +114,7 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 		tokenRefreshScheduler := batch.NewTokenRefreshScheduler(
 			tokenService,
 			affiliatePlatformClient,
+			dropshippingPlatformClient,
 			cfg.TokenRefreshInterval,
 		)
 		tokenRefreshScheduler.Start(context.Background())

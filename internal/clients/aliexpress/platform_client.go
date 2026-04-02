@@ -95,9 +95,7 @@ func (c *PlatformClient) CallSystemAPI(ctx context.Context, apiPath string, para
 
 	variants := []systemAPIVariant{
 		{name: "rest-post-body", basePath: "/rest", method: http.MethodPost, bizInBody: true},
-		{name: "rest2-post-body", basePath: "/rest/2.0", method: http.MethodPost, bizInBody: true},
 		{name: "rest-get-query", basePath: "/rest", method: http.MethodGet, bizInBody: false},
-		{name: "rest2-get-query", basePath: "/rest/2.0", method: http.MethodGet, bizInBody: false},
 	}
 
 	var lastResp *PlatformResponse

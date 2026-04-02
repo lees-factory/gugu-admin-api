@@ -10,27 +10,30 @@ import (
 )
 
 type TokenRefreshScheduler struct {
-	tokenService   *domaintoken.Service
-	platformClient *aliexpress.PlatformClient
-	interval       time.Duration
-	refreshMargin  time.Duration
+	tokenService       *domaintoken.Service
+	affiliateClient    *aliexpress.PlatformClient
+	dropshippingClient *aliexpress.PlatformClient
+	interval           time.Duration
+	refreshMargin      time.Duration
 }
 
 func NewTokenRefreshScheduler(
 	tokenService *domaintoken.Service,
-	platformClient *aliexpress.PlatformClient,
+	affiliateClient *aliexpress.PlatformClient,
+	dropshippingClient *aliexpress.PlatformClient,
 	interval time.Duration,
 ) *TokenRefreshScheduler {
 	return &TokenRefreshScheduler{
-		tokenService:   tokenService,
-		platformClient: platformClient,
-		interval:       interval,
-		refreshMargin:  6 * time.Hour,
+		tokenService:       tokenService,
+		affiliateClient:    affiliateClient,
+		dropshippingClient: dropshippingClient,
+		interval:           interval,
+		refreshMargin:      6 * time.Hour,
 	}
 }
 
 func (s *TokenRefreshScheduler) Start(ctx context.Context) {
-	if s == nil || s.tokenService == nil || s.platformClient == nil || s.interval <= 0 {
+	if s == nil || s.tokenService == nil || s.interval <= 0 {
 		return
 	}
 
@@ -80,7 +83,13 @@ func (s *TokenRefreshScheduler) refreshOne(ctx context.Context, t domaintoken.Se
 		return
 	}
 
-	resp, err := s.platformClient.RefreshToken(ctx, t.RefreshToken)
+	client := s.clientForAppType(t.AppType)
+	if client == nil {
+		log.Printf("token refresh scheduler: no client configured for seller=%s app_type=%s", t.SellerID, t.AppType)
+		return
+	}
+
+	resp, err := client.RefreshToken(ctx, t.RefreshToken)
 	if err != nil {
 		log.Printf("token refresh scheduler: refresh failed for seller=%s app_type=%s: %v", t.SellerID, t.AppType, err)
 		return
@@ -95,4 +104,15 @@ func (s *TokenRefreshScheduler) refreshOne(ctx context.Context, t domaintoken.Se
 
 	log.Printf("token refresh scheduler: refreshed token for seller=%s app_type=%s expires_at=%s",
 		updated.SellerID, updated.AppType, updated.AccessTokenExpiresAt.Format(time.RFC3339))
+}
+
+func (s *TokenRefreshScheduler) clientForAppType(appType domaintoken.AppType) *aliexpress.PlatformClient {
+	switch appType {
+	case domaintoken.AppTypeAffiliate:
+		return s.affiliateClient
+	case domaintoken.AppTypeDropshipping:
+		return s.dropshippingClient
+	default:
+		return nil
+	}
 }
