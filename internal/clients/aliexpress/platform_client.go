@@ -30,6 +30,13 @@ type PlatformClient struct {
 	httpClient *http.Client
 }
 
+func (c *PlatformClient) AppKey() string {
+	if c == nil || c.signer == nil {
+		return ""
+	}
+	return c.signer.appKey
+}
+
 func NewPlatformClient(cfg PlatformConfig) *PlatformClient {
 	baseURL := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
 	if baseURL == "" {

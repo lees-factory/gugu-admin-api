@@ -11,6 +11,14 @@ import (
 // TODO: 실제 인증 로직 구현 (JWT, API Key 등)
 func AdminAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c.Request.URL != nil {
+			switch c.Request.URL.Path {
+			case "/v1/aliexpress/oauth/callback/affiliate", "/v1/aliexpress/oauth/callback/dropshipping":
+				c.Next()
+				return
+			}
+		}
+
 		apiKey := c.GetHeader("X-Admin-API-Key")
 		if apiKey == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, response.ErrorFromCode(

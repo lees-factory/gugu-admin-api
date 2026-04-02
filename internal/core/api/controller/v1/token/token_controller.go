@@ -1,7 +1,10 @@
 package token
 
 import (
+	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ljj/gugu-admin-api/internal/clients/aliexpress"
@@ -28,9 +31,37 @@ func NewController(
 }
 
 func (ctrl *Controller) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/aliexpress/oauth/authorize-url", ctrl.AuthorizeURL)
+	rg.GET("/aliexpress/oauth/callback/affiliate", ctrl.CallbackAffiliate)
+	rg.GET("/aliexpress/oauth/callback/dropshipping", ctrl.CallbackDropshipping)
 	rg.POST("/aliexpress/token/generate", ctrl.Generate)
 	rg.POST("/aliexpress/token/refresh", ctrl.Refresh)
 	rg.GET("/aliexpress/token/status", ctrl.Status)
+}
+
+func (ctrl *Controller) AuthorizeURL(c *gin.Context) {
+	appType := domaintoken.AppType(c.Query("app_type"))
+	client := ctrl.clientForAppType(appType)
+	if client == nil {
+		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_APP_TYPE", "unsupported app_type: "+string(appType)))
+		return
+	}
+
+	callbackURL := externalBaseURL(c) + callbackPathForAppType(appType)
+	authURL := buildAuthorizeURL(client.AppKey(), callbackURL)
+	c.JSON(http.StatusOK, response.SuccessWithData(gin.H{
+		"app_type":          appType,
+		"authorization_url": authURL,
+		"callback_url":      callbackURL,
+	}))
+}
+
+func (ctrl *Controller) CallbackAffiliate(c *gin.Context) {
+	ctrl.handleOAuthCallback(c, domaintoken.AppTypeAffiliate)
+}
+
+func (ctrl *Controller) CallbackDropshipping(c *gin.Context) {
+	ctrl.handleOAuthCallback(c, domaintoken.AppTypeDropshipping)
 }
 
 type generateRequest struct {
@@ -227,4 +258,70 @@ func (ctrl *Controller) clientForAppType(appType domaintoken.AppType) *aliexpres
 	default:
 		return nil
 	}
+}
+
+func (ctrl *Controller) handleOAuthCallback(c *gin.Context, appType domaintoken.AppType) {
+	code := strings.TrimSpace(c.Query("code"))
+	if code == "" {
+		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_REQUEST", "missing code"))
+		return
+	}
+
+	client := ctrl.clientForAppType(appType)
+	if client == nil {
+		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_APP_TYPE", "unsupported app_type: "+string(appType)))
+		return
+	}
+
+	tokenResp, err := client.GenerateToken(c.Request.Context(), code)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.ErrorFromCode("TOKEN_GENERATE_FAILED", err.Error()))
+		return
+	}
+
+	domainToken := tokenResp.ToDomainToken(appType)
+	if err := ctrl.tokenService.SaveToken(c.Request.Context(), domainToken); err != nil {
+		c.JSON(http.StatusInternalServerError, response.ErrorFromCode("TOKEN_SAVE_FAILED", err.Error()))
+		return
+	}
+
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.String(http.StatusOK,
+		"<html><body><h1>AliExpress token saved</h1><p>app_type=%s</p><p>seller_id=%s</p></body></html>",
+		domainToken.AppType,
+		domainToken.SellerID,
+	)
+}
+
+func buildAuthorizeURL(appKey string, callbackURL string) string {
+	values := url.Values{}
+	values.Set("response_type", "code")
+	values.Set("force_auth", "true")
+	values.Set("redirect_uri", callbackURL)
+	values.Set("client_id", appKey)
+	return "https://api-sg.aliexpress.com/oauth/authorize?" + values.Encode()
+}
+
+func callbackPathForAppType(appType domaintoken.AppType) string {
+	switch appType {
+	case domaintoken.AppTypeAffiliate:
+		return "/v1/aliexpress/oauth/callback/affiliate"
+	case domaintoken.AppTypeDropshipping:
+		return "/v1/aliexpress/oauth/callback/dropshipping"
+	default:
+		return ""
+	}
+}
+
+func externalBaseURL(c *gin.Context) string {
+	scheme := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto"))
+	if scheme == "" {
+		if c.Request.TLS != nil {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
+	}
+	host := c.Request.Host
+	return fmt.Sprintf("%s://%s", scheme, host)
 }
