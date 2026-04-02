@@ -1,6 +1,7 @@
 package aliexpress
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -92,9 +93,20 @@ func (c *PlatformClient) CallSystemAPI(ctx context.Context, apiPath string, para
 		params = make(map[string]string)
 	}
 
-	signed := c.signer.SignSystemAPI(apiPath, params)
-
 	reqURL := c.baseURL + "/rest" + apiPath
+	resp, err := c.callSystemAPIWithQuery(ctx, reqURL, apiPath, params)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Code != "IncompleteSignature" {
+		return resp, nil
+	}
+
+	return c.callSystemAPIWithForm(ctx, reqURL, apiPath, params)
+}
+
+func (c *PlatformClient) callSystemAPIWithQuery(ctx context.Context, reqURL string, apiPath string, params map[string]string) (*PlatformResponse, error) {
+	signed := c.signer.SignSystemAPI(apiPath, params)
 	q := url.Values{}
 	for k, v := range signed {
 		q.Set(k, v)
@@ -104,6 +116,22 @@ func (c *PlatformClient) CallSystemAPI(ctx context.Context, apiPath string, para
 	if err != nil {
 		return nil, fmt.Errorf("build system api request: %w", err)
 	}
+
+	return c.doRequest(httpReq)
+}
+
+func (c *PlatformClient) callSystemAPIWithForm(ctx context.Context, reqURL string, apiPath string, params map[string]string) (*PlatformResponse, error) {
+	signed := c.signer.SignSystemAPI(apiPath, params)
+	form := url.Values{}
+	for k, v := range signed {
+		form.Set(k, v)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewBufferString(form.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("build system api request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	return c.doRequest(httpReq)
 }
