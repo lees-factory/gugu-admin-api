@@ -120,7 +120,8 @@ CREATE TABLE IF NOT EXISTS gugu.aliexpress_seller_token (
     authorized_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    app_type TEXT NOT NULL DEFAULT 'AFFILIATE'
+    app_type TEXT NOT NULL DEFAULT 'AFFILIATE',
+    UNIQUE (seller_id, app_type)
 );
 
 CREATE TABLE IF NOT EXISTS gugu.hot_product (

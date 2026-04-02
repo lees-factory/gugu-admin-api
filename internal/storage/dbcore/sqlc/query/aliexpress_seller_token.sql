@@ -24,7 +24,7 @@ INSERT INTO gugu.aliexpress_seller_token (
     last_refreshed_at, authorized_at, created_at, updated_at, app_type
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
-) ON CONFLICT (seller_id) DO UPDATE SET
+) ON CONFLICT (seller_id, app_type) DO UPDATE SET
     havana_id = EXCLUDED.havana_id,
     app_user_id = EXCLUDED.app_user_id,
     user_nick = EXCLUDED.user_nick,

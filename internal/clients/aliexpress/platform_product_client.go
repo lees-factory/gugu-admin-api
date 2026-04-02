@@ -255,9 +255,9 @@ type dsSKUWrapper struct {
 }
 
 type dsBaseInfo struct {
-	ProductID    string `json:"product_id"`
-	Subject      string `json:"subject"`
-	CurrencyCode string `json:"currency_code"`
+	ProductID    jsonString `json:"product_id"`
+	Subject      string     `json:"subject"`
+	CurrencyCode string     `json:"currency_code"`
 }
 
 type dsSKU struct {
@@ -324,7 +324,7 @@ func (c *PlatformProductClient) GetDropshippingProduct(ctx context.Context, req 
 	}
 
 	if apiResp.Result.BaseInfo != nil {
-		detail.ProductID = apiResp.Result.BaseInfo.ProductID
+		detail.ProductID = string(apiResp.Result.BaseInfo.ProductID)
 		detail.Subject = apiResp.Result.BaseInfo.Subject
 		detail.CurrencyCode = apiResp.Result.BaseInfo.CurrencyCode
 	}
