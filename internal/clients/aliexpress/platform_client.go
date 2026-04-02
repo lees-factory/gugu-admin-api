@@ -94,40 +94,26 @@ func (c *PlatformClient) CallSystemAPI(ctx context.Context, apiPath string, para
 	}
 
 	reqURL := c.baseURL + "/rest" + apiPath
-	resp, err := c.callSystemAPIWithQuery(ctx, reqURL, apiPath, params)
-	if err != nil {
-		return nil, err
+	commonParams := c.signer.commonParams()
+	allParams := make(map[string]string, len(commonParams)+len(params)+1)
+	for k, v := range commonParams {
+		allParams[k] = v
 	}
-	if resp.Code != "IncompleteSignature" {
-		return resp, nil
+	for k, v := range params {
+		allParams[k] = v
 	}
+	commonParams["sign"] = c.signer.hmacSHA256(apiPath + sortedConcat(allParams))
 
-	return c.callSystemAPIWithForm(ctx, reqURL, apiPath, params)
-}
-
-func (c *PlatformClient) callSystemAPIWithQuery(ctx context.Context, reqURL string, apiPath string, params map[string]string) (*PlatformResponse, error) {
-	signed := c.signer.SignSystemAPI(apiPath, params)
-	q := url.Values{}
-	for k, v := range signed {
-		q.Set(k, v)
+	query := url.Values{}
+	for k, v := range commonParams {
+		query.Set(k, v)
 	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL+"?"+q.Encode(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("build system api request: %w", err)
-	}
-
-	return c.doRequest(httpReq)
-}
-
-func (c *PlatformClient) callSystemAPIWithForm(ctx context.Context, reqURL string, apiPath string, params map[string]string) (*PlatformResponse, error) {
-	signed := c.signer.SignSystemAPI(apiPath, params)
 	form := url.Values{}
-	for k, v := range signed {
+	for k, v := range params {
 		form.Set(k, v)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewBufferString(form.Encode()))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL+"?"+query.Encode(), bytes.NewBufferString(form.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("build system api request: %w", err)
 	}
