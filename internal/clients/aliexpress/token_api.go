@@ -58,22 +58,28 @@ func parseTokenResponse(resp *PlatformResponse) (*TokenResponse, error) {
 		return nil, fmt.Errorf("api error: code=%s type=%s message=%s", resp.Code, resp.Type, resp.Message)
 	}
 
-	raw := resp.Result
-	if raw == nil {
-		raw = marshalResponse(resp)
-	}
-
 	var tokenResp TokenResponse
-	if err := json.Unmarshal(raw, &tokenResp); err != nil {
-		return nil, fmt.Errorf("decode token response: %w", err)
+
+	if len(resp.Result) > 0 && string(resp.Result) != "null" {
+		if err := json.Unmarshal(resp.Result, &tokenResp); err == nil && tokenResp.AccessToken != "" {
+			return &tokenResp, nil
+		}
 	}
 
-	return &tokenResp, nil
-}
+	if resp.RawBody != "" {
+		if err := json.Unmarshal([]byte(resp.RawBody), &tokenResp); err == nil && tokenResp.AccessToken != "" {
+			return &tokenResp, nil
+		}
 
-func marshalResponse(resp *PlatformResponse) json.RawMessage {
-	b, _ := json.Marshal(resp)
-	return b
+		var wrapped struct {
+			Result TokenResponse `json:"result"`
+		}
+		if err := json.Unmarshal([]byte(resp.RawBody), &wrapped); err == nil && wrapped.Result.AccessToken != "" {
+			return &wrapped.Result, nil
+		}
+	}
+
+	return nil, fmt.Errorf("decode token response: unsupported structure")
 }
 
 // ToDomainToken converts a TokenResponse to a domain SellerToken.
