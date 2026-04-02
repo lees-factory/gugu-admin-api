@@ -30,6 +30,22 @@ type SellerToken struct {
 	AppType               AppType
 }
 
+func MergeRefreshedToken(existing SellerToken, refreshed SellerToken) SellerToken {
+	refreshed.ID = existing.ID
+	refreshed.SellerID = existing.SellerID
+	refreshed.HavanaID = existing.HavanaID
+	refreshed.AppUserID = existing.AppUserID
+	refreshed.UserNick = existing.UserNick
+	refreshed.Account = existing.Account
+	refreshed.AccountPlatform = existing.AccountPlatform
+	refreshed.Locale = existing.Locale
+	refreshed.SP = existing.SP
+	refreshed.AuthorizedAt = existing.AuthorizedAt
+	refreshed.CreatedAt = existing.CreatedAt
+	refreshed.AppType = existing.AppType
+	return refreshed
+}
+
 func (t *SellerToken) IsAccessTokenExpired(now time.Time) bool {
 	return now.After(t.AccessTokenExpiresAt)
 }

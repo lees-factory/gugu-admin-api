@@ -106,10 +106,7 @@ func (ctrl *Controller) Refresh(c *gin.Context) {
 		return
 	}
 
-	updated := tokenResp.ToDomainToken(appType)
-	updated.ID = existing.ID
-	updated.AuthorizedAt = existing.AuthorizedAt
-	updated.CreatedAt = existing.CreatedAt
+	updated := domaintoken.MergeRefreshedToken(*existing, tokenResp.ToDomainToken(appType))
 
 	if err := ctrl.tokenService.SaveToken(c.Request.Context(), updated); err != nil {
 		c.JSON(http.StatusInternalServerError, response.ErrorFromCode("TOKEN_SAVE_FAILED", err.Error()))
@@ -157,9 +154,9 @@ func (ctrl *Controller) Status(c *gin.Context) {
 
 		entry := gin.H{
 			"app_type":                 t.AppType,
-			"seller_id":               t.SellerID,
-			"user_nick":               t.UserNick,
-			"status":                  status,
+			"seller_id":                t.SellerID,
+			"user_nick":                t.UserNick,
+			"status":                   status,
 			"access_token_expires_at":  t.AccessTokenExpiresAt,
 			"refresh_token_expires_at": t.RefreshTokenExpiresAt,
 			"last_refreshed_at":        t.LastRefreshedAt,

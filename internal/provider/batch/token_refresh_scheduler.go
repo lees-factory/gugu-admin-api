@@ -86,10 +86,7 @@ func (s *TokenRefreshScheduler) refreshOne(ctx context.Context, t domaintoken.Se
 		return
 	}
 
-	updated := resp.ToDomainToken(t.AppType)
-	updated.ID = t.ID
-	updated.AuthorizedAt = t.AuthorizedAt
-	updated.CreatedAt = t.CreatedAt
+	updated := domaintoken.MergeRefreshedToken(t, resp.ToDomainToken(t.AppType))
 
 	if err := s.tokenService.SaveToken(ctx, updated); err != nil {
 		log.Printf("token refresh scheduler: save failed for seller=%s app_type=%s: %v", t.SellerID, t.AppType, err)
