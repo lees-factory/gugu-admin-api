@@ -256,6 +256,85 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /v1/aliexpress/oauth/authorize-url:
+    get:
+      tags:
+        - token
+      security:
+        - AdminApiKey: []
+      summary: OAuth 인가 URL 생성
+      description: |
+        지정한 app_type에 대해 AliExpress seller authorization URL을 생성합니다.
+        반환된 URL로 이동하면 callback 엔드포인트에서 code를 내부적으로 받아 바로 토큰을 저장합니다.
+      operationId: getAliExpressAuthorizeUrl
+      parameters:
+        - in: query
+          name: app_type
+          required: true
+          schema:
+            type: string
+            enum:
+              - AFFILIATE
+              - DROPSHIPPING
+      responses:
+        '200':
+          description: 인가 URL 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '400':
+          description: 잘못된 앱 유형
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 관리자 인증 헤더 누락
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/aliexpress/oauth/callback/affiliate:
+    get:
+      tags:
+        - token
+      summary: Affiliate OAuth callback
+      description: AliExpress Affiliate 앱 authorization code를 받아 내부 토큰 저장까지 수행합니다.
+      operationId: aliexpressAffiliateCallback
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 토큰 저장 성공
+        '400':
+          description: code 누락 또는 잘못된 요청
+        '500':
+          description: 토큰 저장 실패
+  /v1/aliexpress/oauth/callback/dropshipping:
+    get:
+      tags:
+        - token
+      summary: Dropshipping OAuth callback
+      description: AliExpress Dropshipping 앱 authorization code를 받아 내부 토큰 저장까지 수행합니다.
+      operationId: aliexpressDropshippingCallback
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 토큰 저장 성공
+        '400':
+          description: code 누락 또는 잘못된 요청
+        '500':
+          description: 토큰 저장 실패
   /v1/aliexpress/token/refresh:
     post:
       tags:
