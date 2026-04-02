@@ -93,7 +93,43 @@ func (c *PlatformClient) CallSystemAPI(ctx context.Context, apiPath string, para
 		params = make(map[string]string)
 	}
 
-	reqURL := c.baseURL + "/rest" + apiPath
+	variants := []systemAPIVariant{
+		{name: "rest-post-body", basePath: "/rest", method: http.MethodPost, bizInBody: true},
+		{name: "rest2-post-body", basePath: "/rest/2.0", method: http.MethodPost, bizInBody: true},
+		{name: "rest-get-query", basePath: "/rest", method: http.MethodGet, bizInBody: false},
+		{name: "rest2-get-query", basePath: "/rest/2.0", method: http.MethodGet, bizInBody: false},
+	}
+
+	var lastResp *PlatformResponse
+	var lastErr error
+	for _, variant := range variants {
+		resp, err := c.callSystemAPIVariant(ctx, apiPath, params, variant)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if !isIncompleteSignature(resp) {
+			return resp, nil
+		}
+		lastResp = resp
+	}
+	if lastResp != nil {
+		return lastResp, nil
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("call system api failed: no variant succeeded")
+}
+
+type systemAPIVariant struct {
+	name      string
+	basePath  string
+	method    string
+	bizInBody bool
+}
+
+func (c *PlatformClient) callSystemAPIVariant(ctx context.Context, apiPath string, params map[string]string, variant systemAPIVariant) (*PlatformResponse, error) {
 	commonParams := c.signer.commonParams()
 	allParams := make(map[string]string, len(commonParams)+len(params)+1)
 	for k, v := range commonParams {
@@ -113,13 +149,35 @@ func (c *PlatformClient) CallSystemAPI(ctx context.Context, apiPath string, para
 		form.Set(k, v)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL+"?"+query.Encode(), bytes.NewBufferString(form.Encode()))
-	if err != nil {
-		return nil, fmt.Errorf("build system api request: %w", err)
+	reqURL := c.baseURL + variant.basePath + apiPath
+	var body *bytes.Buffer
+	if variant.bizInBody {
+		body = bytes.NewBufferString(form.Encode())
+	} else {
+		body = bytes.NewBuffer(nil)
+		for k, values := range form {
+			for _, v := range values {
+				query.Set(k, v)
+			}
+		}
 	}
-	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	httpReq, err := http.NewRequestWithContext(ctx, variant.method, reqURL+"?"+query.Encode(), body)
+	if err != nil {
+		return nil, fmt.Errorf("build system api request (%s): %w", variant.name, err)
+	}
+	if variant.method == http.MethodPost {
+		httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
 
 	return c.doRequest(httpReq)
+}
+
+func isIncompleteSignature(resp *PlatformResponse) bool {
+	if resp == nil {
+		return false
+	}
+	return resp.Code == "IncompleteSignature"
 }
 
 func (c *PlatformClient) doRequest(req *http.Request) (*PlatformResponse, error) {
