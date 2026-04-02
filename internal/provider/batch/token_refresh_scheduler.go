@@ -82,6 +82,10 @@ func (s *TokenRefreshScheduler) refreshOne(ctx context.Context, t domaintoken.Se
 		log.Printf("token refresh scheduler: refresh token expired for seller=%s app_type=%s — re-authorization required", t.SellerID, t.AppType)
 		return
 	}
+	if t.RefreshToken == "" {
+		log.Printf("token refresh scheduler: refresh token missing for seller=%s app_type=%s — re-authorization required", t.SellerID, t.AppType)
+		return
+	}
 
 	client := s.clientForAppType(t.AppType)
 	if client == nil {

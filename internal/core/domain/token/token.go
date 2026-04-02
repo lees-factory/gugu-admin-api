@@ -31,6 +31,18 @@ type SellerToken struct {
 }
 
 func MergeRefreshedToken(existing SellerToken, refreshed SellerToken) SellerToken {
+	if refreshed.AccessToken == "" {
+		refreshed.AccessToken = existing.AccessToken
+	}
+	if refreshed.RefreshToken == "" {
+		refreshed.RefreshToken = existing.RefreshToken
+	}
+	if refreshed.AccessTokenExpiresAt.IsZero() {
+		refreshed.AccessTokenExpiresAt = existing.AccessTokenExpiresAt
+	}
+	if refreshed.RefreshTokenExpiresAt == nil {
+		refreshed.RefreshTokenExpiresAt = existing.RefreshTokenExpiresAt
+	}
 	refreshed.ID = existing.ID
 	refreshed.SellerID = existing.SellerID
 	refreshed.HavanaID = existing.HavanaID

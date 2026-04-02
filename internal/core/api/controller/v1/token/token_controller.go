@@ -99,6 +99,10 @@ func (ctrl *Controller) Refresh(c *gin.Context) {
 		c.JSON(http.StatusNotFound, response.ErrorFromCode("TOKEN_NOT_FOUND", "no token found for app_type: "+req.AppType))
 		return
 	}
+	if existing.RefreshToken == "" {
+		c.JSON(http.StatusBadRequest, response.ErrorFromCode("TOKEN_REFRESH_FAILED", "refresh token missing; re-authorization required"))
+		return
+	}
 
 	tokenResp, err := client.RefreshToken(c.Request.Context(), existing.RefreshToken)
 	if err != nil {
