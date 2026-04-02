@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"log"
 
 	_ "github.com/lib/pq"
@@ -15,6 +17,13 @@ func main() {
 	}
 
 	cfg := config.Load()
+	log.Printf(
+		"config loaded: affiliate_app_key=%s affiliate_app_secret=%s ds_app_key=%s ds_app_secret=%s",
+		fingerprint(cfg.AliExpressAppKey),
+		fingerprint(cfg.AliExpressAppSecret),
+		fingerprint(cfg.AliExpressDSAppKey),
+		fingerprint(cfg.AliExpressDSAppSecret),
+	)
 
 	db, err := sql.Open("postgres", cfg.DSN())
 	if err != nil {
@@ -32,4 +41,23 @@ func main() {
 	if err := server.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("failed to start server: %v", err)
 	}
+}
+
+func fingerprint(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return "len=" + itoa(len(value)) + " sha256=" + hex.EncodeToString(sum[:4])
+}
+
+func itoa(v int) string {
+	if v == 0 {
+		return "0"
+	}
+	var buf [20]byte
+	i := len(buf)
+	for v > 0 {
+		i--
+		buf[i] = byte('0' + v%10)
+		v /= 10
+	}
+	return string(buf[i:])
 }
