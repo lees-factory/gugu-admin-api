@@ -3,9 +3,12 @@ package aliexpress
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -103,12 +106,14 @@ func (c *PlatformClient) CallSystemAPI(ctx context.Context, apiPath string, para
 	for _, variant := range variants {
 		resp, err := c.callSystemAPIVariant(ctx, apiPath, params, variant)
 		if err != nil {
+			c.logSystemAPIDebug(apiPath, params, variant, "", err)
 			lastErr = err
 			continue
 		}
 		if !isIncompleteSignature(resp) {
 			return resp, nil
 		}
+		c.logSystemAPIDebug(apiPath, params, variant, resp.Code, nil)
 		lastResp = resp
 	}
 	if lastResp != nil {
@@ -176,6 +181,45 @@ func isIncompleteSignature(resp *PlatformResponse) bool {
 		return false
 	}
 	return resp.Code == "IncompleteSignature"
+}
+
+func (c *PlatformClient) logSystemAPIDebug(apiPath string, params map[string]string, variant systemAPIVariant, code string, err error) {
+	if !strings.Contains(apiPath, "/auth/token/") {
+		return
+	}
+
+	signPayload := apiPath + sortedConcat(mergeMaps(c.signer.commonParams(), params))
+	message := fmt.Sprintf(
+		"system api debug: path=%s variant=%s method=%s biz_in_body=%t app_key=%s refresh_token=%s payload=%s",
+		apiPath,
+		variant.name,
+		variant.method,
+		variant.bizInBody,
+		fingerprintText(c.signer.appKey),
+		fingerprintText(params["refresh_token"]),
+		fingerprintText(signPayload),
+	)
+	if err != nil {
+		log.Printf("%s err=%v", message, err)
+		return
+	}
+	log.Printf("%s resp_code=%s", message, code)
+}
+
+func mergeMaps(a map[string]string, b map[string]string) map[string]string {
+	merged := make(map[string]string, len(a)+len(b))
+	for k, v := range a {
+		merged[k] = v
+	}
+	for k, v := range b {
+		merged[k] = v
+	}
+	return merged
+}
+
+func fingerprintText(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return fmt.Sprintf("len=%d sha256=%s", len(value), hex.EncodeToString(sum[:4]))
 }
 
 func (c *PlatformClient) doRequest(req *http.Request) (*PlatformResponse, error) {
