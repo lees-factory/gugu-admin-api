@@ -55,6 +55,7 @@ func (s *Signer) commonParams() map[string]string {
 	return map[string]string{
 		"app_key":     s.appKey,
 		"timestamp":   fmt.Sprintf("%d", time.Now().UnixMilli()),
+		"partner_id":  "iop-sdk-java",
 		"sign_method": "sha256",
 	}
 }
