@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/ljj/gugu-admin-api/internal/clients/aliexpress"
 	batchctrl "github.com/ljj/gugu-admin-api/internal/core/api/controller/v1/batch"
+	productctrl "github.com/ljj/gugu-admin-api/internal/core/api/controller/v1/product"
 	tokenctrl "github.com/ljj/gugu-admin-api/internal/core/api/controller/v1/token"
 	userctrl "github.com/ljj/gugu-admin-api/internal/core/api/controller/v1/user"
 	"github.com/ljj/gugu-admin-api/internal/core/api/middleware"
@@ -17,9 +18,9 @@ import (
 	domaintoken "github.com/ljj/gugu-admin-api/internal/core/domain/token"
 	domainuser "github.com/ljj/gugu-admin-api/internal/core/domain/user"
 	"github.com/ljj/gugu-admin-api/internal/provider/batch"
-	dbcorehotproduct "github.com/ljj/gugu-admin-api/internal/storage/dbcore/hotproduct"
 	dbcorepricehistory "github.com/ljj/gugu-admin-api/internal/storage/dbcore/pricehistory"
 	dbcoreproduct "github.com/ljj/gugu-admin-api/internal/storage/dbcore/product"
+	dbcoreproductvariant "github.com/ljj/gugu-admin-api/internal/storage/dbcore/productvariant"
 	dbcoretoken "github.com/ljj/gugu-admin-api/internal/storage/dbcore/token"
 	dbcoreuser "github.com/ljj/gugu-admin-api/internal/storage/dbcore/user"
 	"github.com/ljj/gugu-admin-api/internal/support/clock"
@@ -59,8 +60,8 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 	skuRepo := dbcoreproduct.NewSKUSQLCRepository(db)
 	userRepo := dbcoreuser.NewSQLCRepository(db)
 	tokenRepo := dbcoretoken.NewSQLCRepository(db)
-	hotProductRepo := dbcorehotproduct.NewSQLCRepository(db)
 	priceHistoryRepo := dbcorepricehistory.NewRepository(db)
+	productVariantRepo := dbcoreproductvariant.NewSQLCRepository(db)
 	idGen := id.NewGenerator()
 	clk := clock.New()
 
@@ -102,8 +103,9 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 		batchStatusStore,
 		priceSource,
 		priceHistoryRepo,
+		productVariantRepo,
 	)
-	hotProductLoader := batch.NewHotProductLoader(aliexpressClient, productService, hotProductRepo, priceHistoryRepo, idGen)
+	hotProductLoader := batch.NewHotProductLoader(aliexpressClient, productService, nil, priceHistoryRepo, productVariantRepo, idGen)
 	if cfg.PriceUpdateScheduleEnabled {
 		priceUpdateScheduler := batch.NewPriceUpdateScheduler(
 			priceUpdater,
@@ -132,6 +134,8 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 	// Controllers
 	batchController := batchctrl.NewController(skuEnricher, priceUpdater, hotProductLoader)
 	batchController.RegisterRoutes(rg)
+	productController := productctrl.NewController(productService)
+	productController.RegisterRoutes(rg)
 	tokenController := tokenctrl.NewController(tokenService, affiliatePlatformClient, dropshippingPlatformClient)
 	tokenController.RegisterRoutes(rg)
 	userController := userctrl.NewController(userService)

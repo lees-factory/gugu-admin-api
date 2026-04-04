@@ -81,6 +81,37 @@ func (r *SQLCRepository) ListByCollectionSource(ctx context.Context, collectionS
 	return result, nil
 }
 
+func (r *SQLCRepository) ListAllLocalized(ctx context.Context, language string) ([]domainproduct.LocalizedProduct, error) {
+	rows, err := r.queries.ListAllLocalizedProducts(ctx, sqldb.ListAllLocalizedProductsParams{
+		Language: language,
+		Currency: enum.CurrencyForLanguage(language),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domainproduct.LocalizedProduct, len(rows))
+	for i, row := range rows {
+		result[i] = toDomainLocalizedProductFromListAll(row, language)
+	}
+	return result, nil
+}
+
+func (r *SQLCRepository) ListByCollectionSourceLocalized(ctx context.Context, collectionSource, language string) ([]domainproduct.LocalizedProduct, error) {
+	rows, err := r.queries.ListLocalizedProductsByCollectionSource(ctx, sqldb.ListLocalizedProductsByCollectionSourceParams{
+		CollectionSource: collectionSource,
+		Language:         language,
+		Currency:         enum.CurrencyForLanguage(language),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domainproduct.LocalizedProduct, len(rows))
+	for i, row := range rows {
+		result[i] = toDomainLocalizedProductFromCollection(row, language)
+	}
+	return result, nil
+}
+
 func (r *SQLCRepository) ListPriceUpdateCandidates(ctx context.Context, filter domainproduct.PriceUpdateCandidateFilter) ([]domainproduct.Product, error) {
 	collectedBefore := time.Time{}
 	if filter.CollectedBefore != nil {
@@ -163,5 +194,62 @@ func toDomainProduct(row sqldb.GuguProduct) domainproduct.Product {
 		LastCollectedAt:   row.LastCollectedAt,
 		CreatedAt:         row.CreatedAt,
 		UpdatedAt:         row.UpdatedAt,
+	}
+}
+
+func toDomainLocalizedProduct(row sqldb.GuguProduct, language string) domainproduct.LocalizedProduct {
+	return domainproduct.LocalizedProduct{
+		ID:                row.ID,
+		Market:            enum.Market(row.Market),
+		ExternalProductID: row.ExternalProductID,
+		OriginalURL:       row.OriginalUrl,
+		Title:             row.Title,
+		MainImageURL:      row.MainImageUrl,
+		CurrentPrice:      row.CurrentPrice,
+		Currency:          row.Currency,
+		ProductURL:        row.ProductUrl,
+		CollectionSource:  row.CollectionSource,
+		LastCollectedAt:   row.LastCollectedAt,
+		CreatedAt:         row.CreatedAt,
+		UpdatedAt:         row.UpdatedAt,
+		Language:          language,
+	}
+}
+
+func toDomainLocalizedProductFromListAll(row sqldb.ListAllLocalizedProductsRow, language string) domainproduct.LocalizedProduct {
+	return domainproduct.LocalizedProduct{
+		ID:                row.ID,
+		Market:            enum.Market(row.Market),
+		ExternalProductID: row.ExternalProductID,
+		OriginalURL:       row.OriginalUrl,
+		Title:             row.Title,
+		MainImageURL:      row.MainImageUrl,
+		CurrentPrice:      row.CurrentPrice,
+		Currency:          row.Currency,
+		ProductURL:        row.ProductUrl,
+		CollectionSource:  row.CollectionSource,
+		LastCollectedAt:   row.LastCollectedAt,
+		CreatedAt:         row.CreatedAt,
+		UpdatedAt:         row.UpdatedAt,
+		Language:          language,
+	}
+}
+
+func toDomainLocalizedProductFromCollection(row sqldb.ListLocalizedProductsByCollectionSourceRow, language string) domainproduct.LocalizedProduct {
+	return domainproduct.LocalizedProduct{
+		ID:                row.ID,
+		Market:            enum.Market(row.Market),
+		ExternalProductID: row.ExternalProductID,
+		OriginalURL:       row.OriginalUrl,
+		Title:             row.Title,
+		MainImageURL:      row.MainImageUrl,
+		CurrentPrice:      row.CurrentPrice,
+		Currency:          row.Currency,
+		ProductURL:        row.ProductUrl,
+		CollectionSource:  row.CollectionSource,
+		LastCollectedAt:   row.LastCollectedAt,
+		CreatedAt:         row.CreatedAt,
+		UpdatedAt:         row.UpdatedAt,
+		Language:          language,
 	}
 }

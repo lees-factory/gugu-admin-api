@@ -96,6 +96,19 @@ type GuguProductPriceSnapshot struct {
 	Currency     string    `json:"currency"`
 }
 
+type GuguProductVariant struct {
+	ProductID       string       `json:"product_id"`
+	Language        string       `json:"language"`
+	Currency        string       `json:"currency"`
+	Title           string       `json:"title"`
+	MainImageUrl    string       `json:"main_image_url"`
+	ProductUrl      string       `json:"product_url"`
+	CurrentPrice    string       `json:"current_price"`
+	LastCollectedAt sql.NullTime `json:"last_collected_at"`
+	CreatedAt       time.Time    `json:"created_at"`
+	UpdatedAt       time.Time    `json:"updated_at"`
+}
+
 type GuguSku struct {
 	ID            string    `json:"id"`
 	ProductID     string    `json:"product_id"`

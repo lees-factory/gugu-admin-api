@@ -111,11 +111,16 @@ type PriceHistoryRecorder interface {
 	UpsertProductSnapshot(ctx context.Context, productID string, snapshotDate time.Time, price, currency string) error
 }
 
+type ProductVariantWriter interface {
+	UpsertProductVariant(ctx context.Context, productID, language, currency, title, mainImageURL, productURL, currentPrice string, collectedAt time.Time) error
+}
+
 type PriceUpdater struct {
 	productService *domainproduct.Service
 	statusStore    *BatchStatusStore
 	priceSource    ProductPriceSource
 	priceRecorder  PriceHistoryRecorder
+	variantWriter  ProductVariantWriter
 	runMu          sync.Mutex
 }
 
@@ -124,12 +129,14 @@ func NewPriceUpdater(
 	statusStore *BatchStatusStore,
 	priceSource ProductPriceSource,
 	priceRecorder PriceHistoryRecorder,
+	variantWriter ProductVariantWriter,
 ) *PriceUpdater {
 	return &PriceUpdater{
 		productService: productService,
 		statusStore:    statusStore,
 		priceSource:    priceSource,
 		priceRecorder:  priceRecorder,
+		variantWriter:  variantWriter,
 	}
 }
 
@@ -204,7 +211,7 @@ func (u *PriceUpdater) Run(ctx context.Context, req PriceUpdateRequest) (*PriceU
 		anyUpdated := false
 		now := time.Now()
 		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		representativeCurrency := normalizeRepresentativeCurrency(product.Currency)
+		masterCurrency := enum.SupportedCurrencies[0]
 
 		for _, currency := range enum.SupportedCurrencies {
 			payload, err := u.priceSource.Load(ctx, product, currency)
@@ -213,8 +220,24 @@ func (u *PriceUpdater) Run(ctx context.Context, req PriceUpdateRequest) (*PriceU
 				continue
 			}
 
-			// 대표 통화(product.Currency)인 경우만 product 테이블 갱신
-			if currency == representativeCurrency {
+			if u.variantWriter != nil {
+				if err := u.variantWriter.UpsertProductVariant(
+					ctx,
+					product.ID,
+					enum.LanguageForCurrency(currency),
+					currency,
+					payload.Title,
+					payload.MainImageURL,
+					payload.ProductURL,
+					payload.CurrentPrice,
+					now,
+				); err != nil {
+					log.Printf("[price-update %d/%d] FAILED variant currency=%s: %v", i+1, len(targets), currency, err)
+				}
+			}
+
+			// product 마스터는 KRW 표현만 유지한다.
+			if currency == masterCurrency {
 				_, changed, err := u.productService.RefreshPrice(
 					ctx,
 					product.ID,
@@ -238,12 +261,16 @@ func (u *PriceUpdater) Run(ctx context.Context, req PriceUpdateRequest) (*PriceU
 			if u.priceRecorder != nil {
 				changeValue := ""
 				lastPrice, _ := u.priceRecorder.GetLatestProductPrice(ctx, product.ID, currency)
+				shouldInsertHistory := lastPrice == ""
 				if lastPrice != "" && lastPrice != payload.CurrentPrice {
+					shouldInsertHistory = true
 					changeValue = calcChange(lastPrice, payload.CurrentPrice)
 				}
 
-				if err := u.priceRecorder.InsertProductPrice(ctx, product.ID, now, payload.CurrentPrice, currency, changeValue); err != nil {
-					log.Printf("[price-update %d/%d] FAILED history currency=%s: %v", i+1, len(targets), currency, err)
+				if shouldInsertHistory {
+					if err := u.priceRecorder.InsertProductPrice(ctx, product.ID, now, payload.CurrentPrice, currency, changeValue); err != nil {
+						log.Printf("[price-update %d/%d] FAILED history currency=%s: %v", i+1, len(targets), currency, err)
+					}
 				}
 				if err := u.priceRecorder.UpsertProductSnapshot(ctx, product.ID, today, payload.CurrentPrice, currency); err != nil {
 					log.Printf("[price-update %d/%d] FAILED snapshot currency=%s: %v", i+1, len(targets), currency, err)

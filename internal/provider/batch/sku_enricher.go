@@ -208,12 +208,16 @@ func (e *SKUEnricher) recordSKUPrices(ctx context.Context, productID string, det
 
 		changeValue := ""
 		lastPrice, _ := e.skuRecorder.GetLatestSKUPrice(ctx, dbSku.ID, currency)
+		shouldInsertHistory := lastPrice == ""
 		if lastPrice != "" && lastPrice != price {
+			shouldInsertHistory = true
 			changeValue = calcChange(lastPrice, price)
 		}
 
-		if err := e.skuRecorder.InsertSKUPrice(ctx, dbSku.ID, now, price, currency, changeValue); err != nil {
-			log.Printf("sku history %s currency=%s: %v", dbSku.ID, currency, err)
+		if shouldInsertHistory {
+			if err := e.skuRecorder.InsertSKUPrice(ctx, dbSku.ID, now, price, currency, changeValue); err != nil {
+				log.Printf("sku history %s currency=%s: %v", dbSku.ID, currency, err)
+			}
 		}
 		if err := e.skuRecorder.UpsertSKUSnapshot(ctx, dbSku.ID, today, price, originalPrice, currency); err != nil {
 			log.Printf("sku snapshot %s currency=%s: %v", dbSku.ID, currency, err)

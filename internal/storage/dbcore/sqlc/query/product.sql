@@ -50,6 +50,28 @@ SELECT id, market, external_product_id, original_url, title, main_image_url,
 FROM gugu.product
 ORDER BY created_at;
 
+-- name: ListAllLocalizedProducts :many
+SELECT
+    p.id,
+    p.market,
+    p.external_product_id,
+    p.original_url,
+    COALESCE(pv.title, p.title) AS title,
+    COALESCE(pv.main_image_url, p.main_image_url) AS main_image_url,
+    COALESCE(pv.current_price, p.current_price) AS current_price,
+    COALESCE(pv.currency, p.currency) AS currency,
+    COALESCE(pv.product_url, p.product_url) AS product_url,
+    p.collection_source,
+    COALESCE(pv.last_collected_at, p.last_collected_at) AS last_collected_at,
+    p.created_at,
+    GREATEST(p.updated_at, COALESCE(pv.updated_at, p.updated_at))::timestamptz AS updated_at
+FROM gugu.product p
+LEFT JOIN gugu.product_variant pv
+    ON pv.product_id = p.id
+   AND pv.language = $1
+   AND pv.currency = $2
+ORDER BY p.created_at;
+
 -- name: ListProductsWithoutSKUs :many
 SELECT p.id, p.market, p.external_product_id, p.original_url, p.title,
        p.main_image_url, p.current_price, p.currency, p.product_url,
@@ -66,6 +88,29 @@ SELECT id, market, external_product_id, original_url, title, main_image_url,
 FROM gugu.product
 WHERE collection_source = $1
 ORDER BY created_at;
+
+-- name: ListLocalizedProductsByCollectionSource :many
+SELECT
+    p.id,
+    p.market,
+    p.external_product_id,
+    p.original_url,
+    COALESCE(pv.title, p.title) AS title,
+    COALESCE(pv.main_image_url, p.main_image_url) AS main_image_url,
+    COALESCE(pv.current_price, p.current_price) AS current_price,
+    COALESCE(pv.currency, p.currency) AS currency,
+    COALESCE(pv.product_url, p.product_url) AS product_url,
+    p.collection_source,
+    COALESCE(pv.last_collected_at, p.last_collected_at) AS last_collected_at,
+    p.created_at,
+    GREATEST(p.updated_at, COALESCE(pv.updated_at, p.updated_at))::timestamptz AS updated_at
+FROM gugu.product p
+LEFT JOIN gugu.product_variant pv
+    ON pv.product_id = p.id
+   AND pv.language = $2
+   AND pv.currency = $3
+WHERE p.collection_source = $1
+ORDER BY p.created_at;
 
 -- name: ListPriceUpdateCandidateProducts :many
 SELECT id, market, external_product_id, original_url, title, main_image_url,

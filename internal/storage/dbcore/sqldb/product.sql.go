@@ -165,6 +165,87 @@ func (q *Queries) FindProductsByIDs(ctx context.Context, dollar_1 []string) ([]G
 	return items, nil
 }
 
+const listAllLocalizedProducts = `-- name: ListAllLocalizedProducts :many
+SELECT
+    p.id,
+    p.market,
+    p.external_product_id,
+    p.original_url,
+    COALESCE(pv.title, p.title) AS title,
+    COALESCE(pv.main_image_url, p.main_image_url) AS main_image_url,
+    COALESCE(pv.current_price, p.current_price) AS current_price,
+    COALESCE(pv.currency, p.currency) AS currency,
+    COALESCE(pv.product_url, p.product_url) AS product_url,
+    p.collection_source,
+    COALESCE(pv.last_collected_at, p.last_collected_at) AS last_collected_at,
+    p.created_at,
+    GREATEST(p.updated_at, COALESCE(pv.updated_at, p.updated_at))::timestamptz AS updated_at
+FROM gugu.product p
+LEFT JOIN gugu.product_variant pv
+    ON pv.product_id = p.id
+   AND pv.language = $1
+   AND pv.currency = $2
+ORDER BY p.created_at
+`
+
+type ListAllLocalizedProductsParams struct {
+	Language string `json:"language"`
+	Currency string `json:"currency"`
+}
+
+type ListAllLocalizedProductsRow struct {
+	ID                string    `json:"id"`
+	Market            string    `json:"market"`
+	ExternalProductID string    `json:"external_product_id"`
+	OriginalUrl       string    `json:"original_url"`
+	Title             string    `json:"title"`
+	MainImageUrl      string    `json:"main_image_url"`
+	CurrentPrice      string    `json:"current_price"`
+	Currency          string    `json:"currency"`
+	ProductUrl        string    `json:"product_url"`
+	CollectionSource  string    `json:"collection_source"`
+	LastCollectedAt   time.Time `json:"last_collected_at"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+func (q *Queries) ListAllLocalizedProducts(ctx context.Context, arg ListAllLocalizedProductsParams) ([]ListAllLocalizedProductsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAllLocalizedProducts, arg.Language, arg.Currency)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllLocalizedProductsRow{}
+	for rows.Next() {
+		var i ListAllLocalizedProductsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Market,
+			&i.ExternalProductID,
+			&i.OriginalUrl,
+			&i.Title,
+			&i.MainImageUrl,
+			&i.CurrentPrice,
+			&i.Currency,
+			&i.ProductUrl,
+			&i.CollectionSource,
+			&i.LastCollectedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAllProducts = `-- name: ListAllProducts :many
 SELECT id, market, external_product_id, original_url, title, main_image_url,
        current_price, currency, product_url, collection_source,
@@ -182,6 +263,89 @@ func (q *Queries) ListAllProducts(ctx context.Context) ([]GuguProduct, error) {
 	items := []GuguProduct{}
 	for rows.Next() {
 		var i GuguProduct
+		if err := rows.Scan(
+			&i.ID,
+			&i.Market,
+			&i.ExternalProductID,
+			&i.OriginalUrl,
+			&i.Title,
+			&i.MainImageUrl,
+			&i.CurrentPrice,
+			&i.Currency,
+			&i.ProductUrl,
+			&i.CollectionSource,
+			&i.LastCollectedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLocalizedProductsByCollectionSource = `-- name: ListLocalizedProductsByCollectionSource :many
+SELECT
+    p.id,
+    p.market,
+    p.external_product_id,
+    p.original_url,
+    COALESCE(pv.title, p.title) AS title,
+    COALESCE(pv.main_image_url, p.main_image_url) AS main_image_url,
+    COALESCE(pv.current_price, p.current_price) AS current_price,
+    COALESCE(pv.currency, p.currency) AS currency,
+    COALESCE(pv.product_url, p.product_url) AS product_url,
+    p.collection_source,
+    COALESCE(pv.last_collected_at, p.last_collected_at) AS last_collected_at,
+    p.created_at,
+    GREATEST(p.updated_at, COALESCE(pv.updated_at, p.updated_at))::timestamptz AS updated_at
+FROM gugu.product p
+LEFT JOIN gugu.product_variant pv
+    ON pv.product_id = p.id
+   AND pv.language = $2
+   AND pv.currency = $3
+WHERE p.collection_source = $1
+ORDER BY p.created_at
+`
+
+type ListLocalizedProductsByCollectionSourceParams struct {
+	CollectionSource string `json:"collection_source"`
+	Language         string `json:"language"`
+	Currency         string `json:"currency"`
+}
+
+type ListLocalizedProductsByCollectionSourceRow struct {
+	ID                string    `json:"id"`
+	Market            string    `json:"market"`
+	ExternalProductID string    `json:"external_product_id"`
+	OriginalUrl       string    `json:"original_url"`
+	Title             string    `json:"title"`
+	MainImageUrl      string    `json:"main_image_url"`
+	CurrentPrice      string    `json:"current_price"`
+	Currency          string    `json:"currency"`
+	ProductUrl        string    `json:"product_url"`
+	CollectionSource  string    `json:"collection_source"`
+	LastCollectedAt   time.Time `json:"last_collected_at"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+func (q *Queries) ListLocalizedProductsByCollectionSource(ctx context.Context, arg ListLocalizedProductsByCollectionSourceParams) ([]ListLocalizedProductsByCollectionSourceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listLocalizedProductsByCollectionSource, arg.CollectionSource, arg.Language, arg.Currency)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLocalizedProductsByCollectionSourceRow{}
+	for rows.Next() {
+		var i ListLocalizedProductsByCollectionSourceRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Market,

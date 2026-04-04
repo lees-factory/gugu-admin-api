@@ -12,6 +12,8 @@ type Finder interface {
 	FindByMarketAndExternalProductID(ctx context.Context, market enum.Market, externalProductID string) (*Product, error)
 	ListByMarket(ctx context.Context, market enum.Market) ([]Product, error)
 	ListByCollectionSource(ctx context.Context, collectionSource string) ([]Product, error)
+	ListAllLocalized(ctx context.Context, language string) ([]LocalizedProduct, error)
+	ListByCollectionSourceLocalized(ctx context.Context, collectionSource, language string) ([]LocalizedProduct, error)
 	ListPriceUpdateCandidates(ctx context.Context, filter PriceUpdateCandidateFilter) ([]Product, error)
 	ListAll(ctx context.Context) ([]Product, error)
 }
@@ -42,6 +44,14 @@ func (f *finder) ListByMarket(ctx context.Context, market enum.Market) ([]Produc
 
 func (f *finder) ListByCollectionSource(ctx context.Context, collectionSource string) ([]Product, error) {
 	return f.repository.ListByCollectionSource(ctx, collectionSource)
+}
+
+func (f *finder) ListAllLocalized(ctx context.Context, language string) ([]LocalizedProduct, error) {
+	return f.repository.ListAllLocalized(ctx, language)
+}
+
+func (f *finder) ListByCollectionSourceLocalized(ctx context.Context, collectionSource, language string) ([]LocalizedProduct, error) {
+	return f.repository.ListByCollectionSourceLocalized(ctx, collectionSource, language)
 }
 
 func (f *finder) ListPriceUpdateCandidates(ctx context.Context, filter PriceUpdateCandidateFilter) ([]Product, error) {

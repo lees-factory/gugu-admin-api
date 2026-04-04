@@ -35,6 +35,7 @@ type HotProductLoader struct {
 	productService *domainproduct.Service
 	hotProductRepo *hotproduct.SQLCRepository
 	priceRecorder  PriceHistoryRecorder
+	variantWriter  ProductVariantWriter
 	idGen          *id.Generator
 }
 
@@ -43,6 +44,7 @@ func NewHotProductLoader(
 	productService *domainproduct.Service,
 	hotProductRepo *hotproduct.SQLCRepository,
 	priceRecorder PriceHistoryRecorder,
+	variantWriter ProductVariantWriter,
 	idGen *id.Generator,
 ) *HotProductLoader {
 	return &HotProductLoader{
@@ -50,6 +52,7 @@ func NewHotProductLoader(
 		productService: productService,
 		hotProductRepo: hotProductRepo,
 		priceRecorder:  priceRecorder,
+		variantWriter:  variantWriter,
 		idGen:          idGen,
 	}
 }
@@ -125,29 +128,8 @@ func (l *HotProductLoader) processHotProductItem(
 	title := strings.TrimSpace(item.ProductTitle)
 	imageURL := strings.TrimSpace(item.ProductMainImageURL)
 	productURL := strings.TrimSpace(item.ProductDetailURL)
-	promotionLink := strings.TrimSpace(item.PromotionLink)
 	price := firstNonEmpty(item.TargetSalePrice, item.SalePrice)
 	currency := firstNonEmpty(item.TargetSalePriceCurrency, item.SalePriceCurrency, requestedCurrency)
-
-	hotID, err := l.idGen.New()
-	if err != nil {
-		return false, false, fmt.Errorf("generate hot product id: %w", err)
-	}
-	if err := l.hotProductRepo.Insert(ctx, hotproduct.HotProductRow{
-		ID:                hotID,
-		ExternalProductID: externalProductID,
-		Title:             title,
-		ImageURL:          imageURL,
-		ProductURL:        productURL,
-		PromotionLink:     promotionLink,
-		SalePrice:         price,
-		Currency:          currency,
-		CollectedDate:     today,
-		CreatedAt:         now,
-	}); err != nil {
-		log.Printf("insert hot_product %s currency=%s failed: %v", externalProductID, currency, err)
-		return false, false, nil
-	}
 
 	existing, err := l.productService.FindByMarketAndExternalProductID(ctx, enum.MarketAliExpress, externalProductID)
 	if err != nil {
@@ -190,6 +172,9 @@ func (l *HotProductLoader) processHotProductItem(
 	if err := l.recordProductPrice(ctx, productID, price, currency, now, today); err != nil {
 		log.Printf("record hot product price %s currency=%s failed: %v", externalProductID, currency, err)
 	}
+	if err := l.upsertProductVariant(ctx, productID, title, imageURL, productURL, price, currency, now); err != nil {
+		log.Printf("upsert product variant %s currency=%s failed: %v", externalProductID, currency, err)
+	}
 
 	return productSaved, skipped, nil
 }
@@ -201,16 +186,38 @@ func (l *HotProductLoader) recordProductPrice(ctx context.Context, productID, pr
 
 	changeValue := ""
 	lastPrice, _ := l.priceRecorder.GetLatestProductPrice(ctx, productID, currency)
+	shouldInsertHistory := lastPrice == ""
 	if lastPrice != "" && lastPrice != price {
+		shouldInsertHistory = true
 		changeValue = calcChange(lastPrice, price)
 	}
 
-	if err := l.priceRecorder.InsertProductPrice(ctx, productID, now, price, currency, changeValue); err != nil {
-		return err
+	if shouldInsertHistory {
+		if err := l.priceRecorder.InsertProductPrice(ctx, productID, now, price, currency, changeValue); err != nil {
+			return err
+		}
 	}
 	if err := l.priceRecorder.UpsertProductSnapshot(ctx, productID, today, price, currency); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (l *HotProductLoader) upsertProductVariant(ctx context.Context, productID, title, imageURL, productURL, price, currency string, collectedAt time.Time) error {
+	if l.variantWriter == nil || productID == "" || currency == "" {
+		return nil
+	}
+
+	return l.variantWriter.UpsertProductVariant(
+		ctx,
+		productID,
+		enum.LanguageForCurrency(currency),
+		currency,
+		title,
+		imageURL,
+		productURL,
+		price,
+		collectedAt,
+	)
 }

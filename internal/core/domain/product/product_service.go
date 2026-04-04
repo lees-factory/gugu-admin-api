@@ -69,6 +69,14 @@ func (s *Service) ListByCollectionSource(ctx context.Context, collectionSource s
 	return s.finder.ListByCollectionSource(ctx, strings.TrimSpace(collectionSource))
 }
 
+func (s *Service) ListAllLocalized(ctx context.Context, language string) ([]LocalizedProduct, error) {
+	return s.finder.ListAllLocalized(ctx, enum.NormalizeLanguage(language))
+}
+
+func (s *Service) ListByCollectionSourceLocalized(ctx context.Context, collectionSource, language string) ([]LocalizedProduct, error) {
+	return s.finder.ListByCollectionSourceLocalized(ctx, strings.TrimSpace(collectionSource), enum.NormalizeLanguage(language))
+}
+
 func (s *Service) ListPriceUpdateCandidates(ctx context.Context, filter PriceUpdateCandidateFilter) ([]Product, error) {
 	filter.CollectionSource = strings.TrimSpace(filter.CollectionSource)
 	return s.finder.ListPriceUpdateCandidates(ctx, filter)

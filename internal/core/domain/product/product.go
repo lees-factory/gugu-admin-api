@@ -21,3 +21,20 @@ type Product struct {
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
+
+type LocalizedProduct struct {
+	ID                string
+	Market            enum.Market
+	ExternalProductID string
+	OriginalURL       string
+	Title             string
+	MainImageURL      string
+	CurrentPrice      string
+	Currency          string
+	ProductURL        string
+	CollectionSource  string
+	LastCollectedAt   time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	Language          string
+}
