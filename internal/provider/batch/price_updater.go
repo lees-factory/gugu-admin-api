@@ -218,7 +218,7 @@ func (u *PriceUpdater) Run(ctx context.Context, req PriceUpdateRequest) (*PriceU
 					ctx,
 					product.ID,
 					payload.CurrentPrice,
-					payload.Currency,
+					currency,
 					payload.Title,
 					payload.MainImageURL,
 					payload.ProductURL,

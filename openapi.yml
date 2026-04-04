@@ -38,7 +38,8 @@ paths:
         - AdminApiKey: []
       summary: 인기 상품 적재
       description: |
-        AliExpress 인기 상품을 조회하여 hot_product, product 테이블에 적재합니다.
+        AliExpress 인기 상품을 KRW, USD 각각 조회하여 hot_product, product_price_history, product_price_snapshot에 적재합니다.
+        대표 통화(KRW) 기준으로만 product 테이블에 신규 상품을 생성합니다.
         이미 존재하는 상품은 product insert를 건너뜁니다. SKU는 별도 enrich-skus 엔드포인트로 적재합니다.
       operationId: loadHotProducts
       requestBody:

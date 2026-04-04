@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS gugu.hot_product (
     currency TEXT NOT NULL DEFAULT '',
     collected_date DATE NOT NULL DEFAULT CURRENT_DATE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (external_product_id, collected_date)
+    UNIQUE (external_product_id, currency, collected_date)
 );
 
 CREATE INDEX IF NOT EXISTS idx_hot_product_collected_date ON gugu.hot_product(collected_date);
