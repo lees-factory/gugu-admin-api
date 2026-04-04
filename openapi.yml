@@ -845,6 +845,7 @@ components:
         - email_verified
         - tracked_item_count
         - created_at
+        - sessions
       properties:
         id:
           type: string
@@ -872,6 +873,66 @@ components:
           type:
             - string
             - 'null'
+          format: date-time
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUserLoginSession'
+    AdminUserLoginSession:
+      type: object
+      required:
+        - id
+        - user_id
+        - refresh_token_hash
+        - token_family_id
+        - user_agent
+        - client_ip
+        - device_name
+        - expires_at
+        - last_seen_at
+        - created_at
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        refresh_token_hash:
+          type: string
+        token_family_id:
+          type: string
+        parent_session_id:
+          type:
+            - string
+            - 'null'
+        user_agent:
+          type: string
+        client_ip:
+          type: string
+        device_name:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        rotated_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        revoked_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        reuse_detected_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        created_at:
+          type: string
           format: date-time
     UserListResponse:
       allOf:
