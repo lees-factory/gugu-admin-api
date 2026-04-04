@@ -122,8 +122,9 @@ paths:
       summary: 가격 갱신 배치
       description: |
         대상 상품들의 가격을 AliExpress API에서 다시 조회하여 갱신합니다.
-        KRW/KO, USD/EN 각각 조회하여 product_variant와 product_price_history, product_price_snapshot을 갱신합니다.
-        product 마스터 테이블은 KRW 기준 표현만 유지합니다.
+        일반 상품은 product의 대표 통화 기준 1개 locale만 갱신합니다.
+        `collection_source = HOT_PRODUCT_QUERY` 상품만 KRW/KO, USD/EN 각각 조회하여 product_variant와 product_price_history, product_price_snapshot을 갱신합니다.
+        product 마스터 테이블은 대표 통화 기준 표현만 유지합니다.
       operationId: updatePrices
       requestBody:
         required: false

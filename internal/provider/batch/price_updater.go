@@ -211,9 +211,10 @@ func (u *PriceUpdater) Run(ctx context.Context, req PriceUpdateRequest) (*PriceU
 		anyUpdated := false
 		now := time.Now()
 		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		masterCurrency := enum.SupportedCurrencies[0]
+		currencies := currenciesForProduct(product)
+		masterCurrency := normalizeRepresentativeCurrency(product.Currency)
 
-		for _, currency := range enum.SupportedCurrencies {
+		for _, currency := range currencies {
 			payload, err := u.priceSource.Load(ctx, product, currency)
 			if err != nil {
 				log.Printf("[price-update %d/%d] FAILED load currency=%s: %v", i+1, len(targets), currency, err)
@@ -361,6 +362,13 @@ func normalizeRepresentativeCurrency(currency string) string {
 		return currency
 	}
 	return enum.SupportedCurrencies[0]
+}
+
+func currenciesForProduct(product domainproduct.Product) []string {
+	if product.CollectionSource == domainproduct.CollectionSourceHotProductQuery {
+		return enum.SupportedCurrencies
+	}
+	return []string{normalizeRepresentativeCurrency(product.Currency)}
 }
 
 func compactStrings(values []string) []string {
