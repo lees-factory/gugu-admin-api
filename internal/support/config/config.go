@@ -3,11 +3,13 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Config struct {
 	Port                        string
+	CORSAllowedOrigins          []string
 	DatabaseURL                 string
 	AliExpressAppKey            string
 	AliExpressAppSecret         string
@@ -24,6 +26,7 @@ type Config struct {
 func Load() Config {
 	return Config{
 		Port:                        getEnvOrDefault("PORT", "8700"),
+		CORSAllowedOrigins:          getEnvAsCSV("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://127.0.0.1:5173"}),
 		DatabaseURL:                 getEnvOrDefault("DATABASE_URL", ""),
 		AliExpressAppKey:            getEnvOrDefault("ALIEXPRESS_APP_KEY", ""),
 		AliExpressAppSecret:         getEnvOrDefault("ALIEXPRESS_APP_SECRET", ""),
@@ -73,4 +76,25 @@ func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 		return defaultValue
 	}
 	return parsed
+}
+
+func getEnvAsCSV(key string, defaultValue []string) []string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return defaultValue
+	}
+
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		result = append(result, part)
+	}
+	if len(result) == 0 {
+		return defaultValue
+	}
+	return result
 }

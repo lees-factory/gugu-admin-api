@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,7 +29,7 @@ import (
 
 func NewServer(cfg config.Config, db *sql.DB) *gin.Engine {
 	r := gin.Default()
-	r.Use(corsMiddleware())
+	r.Use(corsMiddleware(cfg.CORSAllowedOrigins))
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
@@ -152,14 +151,14 @@ func findOpenAPIFile() string {
 	return ""
 }
 
-func corsMiddleware() gin.HandlerFunc {
-	allowedOrigins := map[string]struct{}{
-		"http://localhost:5173": {},
-		"http://127.0.0.1:5173": {},
+func corsMiddleware(origins []string) gin.HandlerFunc {
+	allowedOrigins := make(map[string]struct{}, len(origins))
+	for _, origin := range origins {
+		allowedOrigins[origin] = struct{}{}
 	}
 
 	return func(c *gin.Context) {
-		origin := strings.TrimSpace(c.GetHeader("Origin"))
+		origin := c.GetHeader("Origin")
 		if _, ok := allowedOrigins[origin]; ok {
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Vary", "Origin")
