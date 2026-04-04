@@ -204,6 +204,7 @@ func (u *PriceUpdater) Run(ctx context.Context, req PriceUpdateRequest) (*PriceU
 		anyUpdated := false
 		now := time.Now()
 		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		representativeCurrency := normalizeRepresentativeCurrency(product.Currency)
 
 		for _, currency := range enum.SupportedCurrencies {
 			payload, err := u.priceSource.Load(ctx, product, currency)
@@ -213,7 +214,7 @@ func (u *PriceUpdater) Run(ctx context.Context, req PriceUpdateRequest) (*PriceU
 			}
 
 			// 대표 통화(product.Currency)인 경우만 product 테이블 갱신
-			if currency == product.Currency || product.Currency == "" {
+			if currency == representativeCurrency {
 				_, changed, err := u.productService.RefreshPrice(
 					ctx,
 					product.ID,
@@ -322,6 +323,17 @@ func normalizePriceUpdateRequest(req PriceUpdateRequest) PriceUpdateRequest {
 	req.Filter.CollectionSource = strings.TrimSpace(req.Filter.CollectionSource)
 	req.Filter.ProductIDs = compactStrings(req.Filter.ProductIDs)
 	return req
+}
+
+func normalizeRepresentativeCurrency(currency string) string {
+	currency = strings.TrimSpace(currency)
+	if currency == "" {
+		return enum.SupportedCurrencies[0]
+	}
+	if slices.Contains(enum.SupportedCurrencies, currency) {
+		return currency
+	}
+	return enum.SupportedCurrencies[0]
 }
 
 func compactStrings(values []string) []string {
