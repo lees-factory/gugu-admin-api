@@ -1,6 +1,8 @@
-docs/
-docs/**
+#docs/
+#docs/**
 .env
 .env.**
 
 .idea
+
+.gocache
