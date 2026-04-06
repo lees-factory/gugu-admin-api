@@ -37,6 +37,7 @@ func NewServer(cfg config.Config, db *sql.DB) *gin.Engine {
 	})
 	r.GET("/openapi.yml", func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
+		setNoCacheHeaders(c)
 		path := findOpenAPIFile()
 		if path == "" {
 			c.String(http.StatusNotFound, "openapi.yml not found")
@@ -153,6 +154,12 @@ func findOpenAPIFile() string {
 		}
 	}
 	return ""
+}
+
+func setNoCacheHeaders(c *gin.Context) {
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate")
+	c.Header("Pragma", "no-cache")
+	c.Header("Expires", "0")
 }
 
 func corsMiddleware(origins []string) gin.HandlerFunc {
