@@ -28,13 +28,12 @@ CREATE TABLE IF NOT EXISTS gugu.product (
     original_url TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL DEFAULT '',
     main_image_url TEXT NOT NULL DEFAULT '',
-    current_price TEXT NOT NULL DEFAULT '',
-    currency TEXT NOT NULL DEFAULT '',
     product_url TEXT NOT NULL DEFAULT '',
     collection_source TEXT NOT NULL DEFAULT '',
     last_collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    promotion_link TEXT NOT NULL DEFAULT '',
     UNIQUE (market, external_product_id)
 );
 

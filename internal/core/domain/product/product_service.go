@@ -179,7 +179,7 @@ func (s *Service) CreateOrUpdateByMarketAndExternalProductID(ctx context.Context
 	return found, nil
 }
 
-func (s *Service) RefreshPrice(ctx context.Context, productID string, price, currency, title, mainImageURL, productURL string, collectedAt time.Time) (*Product, bool, error) {
+func (s *Service) RefreshCollectedMetadata(ctx context.Context, productID string, title, mainImageURL, productURL string, collectedAt time.Time) (*Product, bool, error) {
 	found, err := s.finder.FindByID(ctx, strings.TrimSpace(productID))
 	if err != nil {
 		return nil, false, fmt.Errorf("find product: %w", err)
@@ -190,20 +190,10 @@ func (s *Service) RefreshPrice(ctx context.Context, productID string, price, cur
 
 	changed := false
 
-	price = strings.TrimSpace(price)
-	currency = strings.TrimSpace(currency)
 	title = strings.TrimSpace(title)
 	mainImageURL = strings.TrimSpace(mainImageURL)
 	productURL = strings.TrimSpace(productURL)
 
-	if price != "" && found.CurrentPrice != price {
-		found.CurrentPrice = price
-		changed = true
-	}
-	if currency != "" && found.Currency != currency {
-		found.Currency = currency
-		changed = true
-	}
 	if title != "" && found.Title != title {
 		found.Title = title
 		changed = true

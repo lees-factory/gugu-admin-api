@@ -71,13 +71,12 @@ type GuguProduct struct {
 	OriginalUrl       string    `json:"original_url"`
 	Title             string    `json:"title"`
 	MainImageUrl      string    `json:"main_image_url"`
-	CurrentPrice      string    `json:"current_price"`
-	Currency          string    `json:"currency"`
 	ProductUrl        string    `json:"product_url"`
 	CollectionSource  string    `json:"collection_source"`
 	LastCollectedAt   time.Time `json:"last_collected_at"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
+	PromotionLink     string    `json:"promotion_link"`
 }
 
 type GuguProductPriceHistory struct {

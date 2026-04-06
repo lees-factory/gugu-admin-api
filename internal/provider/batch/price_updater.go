@@ -237,13 +237,11 @@ func (u *PriceUpdater) Run(ctx context.Context, req PriceUpdateRequest) (*PriceU
 				}
 			}
 
-			// product 마스터는 KRW 표현만 유지한다.
+			// product 마스터는 가격을 저장하지 않고, 대표 메타와 수집 시각만 갱신한다.
 			if currency == masterCurrency {
-				_, changed, err := u.productService.RefreshPrice(
+				_, changed, err := u.productService.RefreshCollectedMetadata(
 					ctx,
 					product.ID,
-					payload.CurrentPrice,
-					currency,
 					payload.Title,
 					payload.MainImageURL,
 					payload.ProductURL,
