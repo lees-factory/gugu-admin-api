@@ -15,6 +15,16 @@ const (
 	StatusInactive Status = "INACTIVE"
 )
 
+type SessionStatusReason string
+
+const (
+	SessionStatusReasonActive  SessionStatusReason = "ACTIVE"
+	SessionStatusReasonRevoked SessionStatusReason = "REVOKED"
+	SessionStatusReasonRotated SessionStatusReason = "ROTATED"
+	SessionStatusReasonReused  SessionStatusReason = "REUSED"
+	SessionStatusReasonExpired SessionStatusReason = "EXPIRED"
+)
+
 type User struct {
 	ID               string
 	Email            string
@@ -43,6 +53,29 @@ type LoginSession struct {
 	RevokedAt        *time.Time
 	ReuseDetectedAt  *time.Time
 	CreatedAt        time.Time
+}
+
+func (s LoginSession) Status(now time.Time) Status {
+	if s.StatusReason(now) == SessionStatusReasonActive {
+		return StatusActive
+	}
+	return StatusInactive
+}
+
+func (s LoginSession) StatusReason(now time.Time) SessionStatusReason {
+	if s.RevokedAt != nil {
+		return SessionStatusReasonRevoked
+	}
+	if s.ReuseDetectedAt != nil {
+		return SessionStatusReasonReused
+	}
+	if s.RotatedAt != nil {
+		return SessionStatusReasonRotated
+	}
+	if !s.ExpiresAt.After(now) {
+		return SessionStatusReasonExpired
+	}
+	return SessionStatusReasonActive
 }
 
 type ListFilter struct {

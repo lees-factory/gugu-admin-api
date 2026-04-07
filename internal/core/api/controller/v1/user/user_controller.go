@@ -62,6 +62,8 @@ type adminUserResponse struct {
 type adminSessionResponse struct {
 	ID               string     `json:"id"`
 	UserID           string     `json:"user_id"`
+	Status           string     `json:"status"`
+	StatusReason     string     `json:"status_reason"`
 	RefreshTokenHash string     `json:"refresh_token_hash"`
 	TokenFamilyID    string     `json:"token_family_id"`
 	ParentSessionID  *string    `json:"parent_session_id"`
@@ -97,10 +99,14 @@ func toAdminUserListResponse(users []domainuser.User) []adminUserResponse {
 
 func toAdminSessionListResponse(sessions []domainuser.LoginSession) []adminSessionResponse {
 	result := make([]adminSessionResponse, len(sessions))
+	now := time.Now()
 	for i, session := range sessions {
+		statusReason := session.StatusReason(now)
 		result[i] = adminSessionResponse{
 			ID:               session.ID,
 			UserID:           session.UserID,
+			Status:           string(session.Status(now)),
+			StatusReason:     string(statusReason),
 			RefreshTokenHash: session.RefreshTokenHash,
 			TokenFamilyID:    session.TokenFamilyID,
 			ParentSessionID:  session.ParentSessionID,

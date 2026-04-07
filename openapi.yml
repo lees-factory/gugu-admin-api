@@ -1400,6 +1400,8 @@ components:
       required:
         - id
         - user_id
+        - status
+        - status_reason
         - refresh_token_hash
         - token_family_id
         - user_agent
@@ -1413,6 +1415,19 @@ components:
           type: string
         user_id:
           type: string
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+        status_reason:
+          type: string
+          enum:
+            - ACTIVE
+            - REVOKED
+            - ROTATED
+            - REUSED
+            - EXPIRED
         refresh_token_hash:
           type: string
         token_family_id:
