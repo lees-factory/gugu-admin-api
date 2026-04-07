@@ -235,7 +235,7 @@ func (u *SKUSnapshotUpdater) loadDropshippingDetailWithRetry(ctx context.Context
 		}
 
 		wait := 25 * time.Second
-		log.Printf("sku snapshot %s currency=%s: rate limited, waiting %s (attempt %d/3)", product.ExternalProductID, currency, wait, attempt+1)
+		log.Printf("rate-limit backoff: product=%s currency=%s waiting %s before retry (%d/3)", product.ExternalProductID, currency, wait, attempt+1)
 		time.Sleep(wait)
 	}
 
@@ -303,7 +303,7 @@ func normalizeSKUSnapshotUpdateRequest(req PriceUpdateRequest) PriceUpdateReques
 func (u *SKUSnapshotUpdater) randomDelay() {
 	if u.maxDelay <= 0 || u.maxDelay <= u.minDelay {
 		if u.minDelay > 0 {
-			log.Printf("waiting %s before next request...", u.minDelay.Round(time.Second))
+			log.Printf("throttling: waiting %s before next API call", u.minDelay.Round(time.Second))
 			time.Sleep(u.minDelay)
 		}
 		return
@@ -311,6 +311,6 @@ func (u *SKUSnapshotUpdater) randomDelay() {
 
 	diff := u.maxDelay - u.minDelay
 	delay := u.minDelay + time.Duration(rand.Int64N(int64(diff)))
-	log.Printf("waiting %s before next request...", delay.Round(time.Second))
+	log.Printf("throttling: waiting %s before next API call", delay.Round(time.Second))
 	time.Sleep(delay)
 }
