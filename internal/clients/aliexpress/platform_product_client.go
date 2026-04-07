@@ -188,9 +188,24 @@ func parseHotProductItems(resp *PlatformResponse) ([]hotProductItem, error) {
 // --- GetAffiliateProductDetails ---
 
 type affiliateDetailAPIResponse struct {
-	Result struct {
-		Products []hotProductItem `json:"products"`
+	RespResult struct {
+		Result struct {
+			Products hotProductItemsContainer `json:"products"`
+		} `json:"result"`
 	} `json:"resp_result"`
+}
+
+type affiliateDetailWrappedResponse struct {
+	Response affiliateDetailAPIResponse `json:"aliexpress_affiliate_productdetail_get_response"`
+}
+
+type affiliateDetailWrappedListResponse struct {
+	Response struct {
+		RespResult struct {
+			CurrentRecordCount int              `json:"current_record_count"`
+			Products           []hotProductItem `json:"products"`
+		} `json:"resp_result"`
+	} `json:"aliexpress_affiliate_productdetail_get_response"`
 }
 
 func (c *PlatformProductClient) GetAffiliateProductDetails(ctx context.Context, req AffiliateProductDetailRequest) ([]AffiliateProductDetail, error) {
@@ -214,13 +229,13 @@ func (c *PlatformProductClient) GetAffiliateProductDetails(ctx context.Context, 
 		return nil, fmt.Errorf("affiliate product detail error: code=%s message=%s", resp.Code, resp.Message)
 	}
 
-	var apiResp affiliateDetailAPIResponse
-	if err := json.Unmarshal(resp.Result, &apiResp); err != nil {
-		return nil, fmt.Errorf("decode affiliate product detail response: %w; raw=%s", err, truncateForError(string(resp.Result)))
+	apiResp, err := parseAffiliateDetailResponse(resp)
+	if err != nil {
+		return nil, err
 	}
 
-	result := make([]AffiliateProductDetail, len(apiResp.Result.Products))
-	for i, item := range apiResp.Result.Products {
+	result := make([]AffiliateProductDetail, len(apiResp.RespResult.Result.Products.Product))
+	for i, item := range apiResp.RespResult.Result.Products.Product {
 		result[i] = AffiliateProductDetail{
 			ProductID:               string(item.ProductID),
 			ProductTitle:            item.ProductTitle,
@@ -234,6 +249,60 @@ func (c *PlatformProductClient) GetAffiliateProductDetails(ctx context.Context, 
 	}
 
 	return result, nil
+}
+
+func parseAffiliateDetailResponse(resp *PlatformResponse) (*affiliateDetailAPIResponse, error) {
+	if len(resp.Result) > 0 && string(resp.Result) != "null" {
+		var direct affiliateDetailAPIResponse
+		if err := json.Unmarshal(resp.Result, &direct); err == nil && len(direct.RespResult.Result.Products.Product) > 0 {
+			return &direct, nil
+		}
+
+		var inner struct {
+			CurrentRecordCount int                      `json:"current_record_count"`
+			Products           hotProductItemsContainer `json:"products"`
+		}
+		if err := json.Unmarshal(resp.Result, &inner); err == nil && len(inner.Products.Product) > 0 {
+			direct.RespResult.Result.Products = inner.Products
+			return &direct, nil
+		}
+	}
+
+	if resp.RawBody != "" {
+		var wrapped affiliateDetailWrappedResponse
+		if err := json.Unmarshal([]byte(resp.RawBody), &wrapped); err == nil && len(wrapped.Response.RespResult.Result.Products.Product) > 0 {
+			return &wrapped.Response, nil
+		}
+
+		var wrappedList affiliateDetailWrappedListResponse
+		if err := json.Unmarshal([]byte(resp.RawBody), &wrappedList); err == nil && len(wrappedList.Response.RespResult.Products) > 0 {
+			var direct affiliateDetailAPIResponse
+			direct.RespResult.Result.Products.Product = wrappedList.Response.RespResult.Products
+			return &direct, nil
+		}
+
+		var direct affiliateDetailAPIResponse
+		if err := json.Unmarshal([]byte(resp.RawBody), &direct); err == nil && len(direct.RespResult.Result.Products.Product) > 0 {
+			return &direct, nil
+		}
+
+		var inner struct {
+			Result struct {
+				CurrentRecordCount int                      `json:"current_record_count"`
+				Products           hotProductItemsContainer `json:"products"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal([]byte(resp.RawBody), &inner); err == nil && len(inner.Result.Products.Product) > 0 {
+			direct.RespResult.Result.Products = inner.Result.Products
+			return &direct, nil
+		}
+	}
+
+	return nil, fmt.Errorf(
+		"decode affiliate product detail response: unsupported structure; rawResult=%s rawBody=%s",
+		truncateForError(string(resp.Result)),
+		truncateForError(resp.RawBody),
+	)
 }
 
 // --- GetDropshippingProduct ---

@@ -52,3 +52,36 @@ func TestParseDropshippingResponse_AcceptsNumericProductID(t *testing.T) {
 		t.Fatalf("expected one sku, got %+v", apiResp.Result.SKUs)
 	}
 }
+
+func TestParseAffiliateDetailResponse_AcceptsTopLevelWrapper(t *testing.T) {
+	resp := &PlatformResponse{
+		RawBody: `{
+			"aliexpress_affiliate_productdetail_get_response": {
+				"resp_result": {
+					"current_record_count": 1,
+					"products": [
+						{
+							"product_id": 1005011915547697,
+							"product_title": "Sample Product",
+							"product_main_image_url": "https://example.com/image.jpg",
+							"product_detail_url": "https://example.com/product",
+							"target_sale_price": "10750",
+							"target_sale_price_currency": "KRW"
+						}
+					]
+				}
+			}
+		}`,
+	}
+
+	apiResp, err := parseAffiliateDetailResponse(resp)
+	if err != nil {
+		t.Fatalf("parseAffiliateDetailResponse() error = %v", err)
+	}
+	if len(apiResp.RespResult.Result.Products.Product) != 1 {
+		t.Fatalf("expected one product, got %d", len(apiResp.RespResult.Result.Products.Product))
+	}
+	if got := string(apiResp.RespResult.Result.Products.Product[0].ProductID); got != "1005011915547697" {
+		t.Fatalf("product_id = %q, want %q", got, "1005011915547697")
+	}
+}
