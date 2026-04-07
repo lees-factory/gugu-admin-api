@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"log"
+	"strings"
+	"time"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/ljj/gugu-admin-api/internal/core/api"
 	"github.com/ljj/gugu-admin-api/internal/support/config"
 )
@@ -25,13 +28,20 @@ func main() {
 		fingerprint(cfg.AliExpressDSAppSecret),
 	)
 
-	db, err := sql.Open("postgres", cfg.DSN())
+	warnIfTransactionPooler(cfg.DSN())
+
+	db, err := sql.Open("pgx", cfg.DSN())
 	if err != nil {
 		log.Fatalf("failed to connect database: %v", err)
 	}
 	defer db.Close()
 
-	if err := db.Ping(); err != nil {
+	db.SetMaxOpenConns(cfg.DBMaxOpenConns)
+	db.SetMaxIdleConns(cfg.DBMaxIdleConns)
+	db.SetConnMaxLifetime(cfg.DBConnMaxLifetime)
+	db.SetConnMaxIdleTime(cfg.DBConnMaxIdleTime)
+
+	if err := pingDB(db, 5*time.Second); err != nil {
 		log.Fatalf("failed to ping database: %v", err)
 	}
 
@@ -40,6 +50,18 @@ func main() {
 	log.Printf("admin-api server starting on :%s", cfg.Port)
 	if err := server.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("failed to start server: %v", err)
+	}
+}
+
+func pingDB(db *sql.DB, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return db.PingContext(ctx)
+}
+
+func warnIfTransactionPooler(dsn string) {
+	if strings.Contains(dsn, ".pooler.supabase.com:6543") {
+		log.Printf("database configuration warning: transaction pooler detected in DATABASE_URL; use Supabase direct or session connection for this long-lived API server")
 	}
 }
 

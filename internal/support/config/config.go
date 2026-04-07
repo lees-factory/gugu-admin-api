@@ -11,6 +11,10 @@ type Config struct {
 	Port                        string
 	CORSAllowedOrigins          []string
 	DatabaseURL                 string
+	DBMaxOpenConns              int
+	DBMaxIdleConns              int
+	DBConnMaxLifetime           time.Duration
+	DBConnMaxIdleTime           time.Duration
 	AliExpressAppKey            string
 	AliExpressAppSecret         string
 	AliExpressDSAppKey          string
@@ -28,6 +32,10 @@ func Load() Config {
 		Port:                        getEnvOrDefault("PORT", "8700"),
 		CORSAllowedOrigins:          getEnvAsCSV("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://127.0.0.1:5173"}),
 		DatabaseURL:                 getEnvOrDefault("DATABASE_URL", ""),
+		DBMaxOpenConns:              getEnvAsInt("DB_MAX_OPEN_CONNS", 10),
+		DBMaxIdleConns:              getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
+		DBConnMaxLifetime:           getEnvAsDuration("DB_CONN_MAX_LIFETIME", 30*time.Minute),
+		DBConnMaxIdleTime:           getEnvAsDuration("DB_CONN_MAX_IDLE_TIME", 10*time.Minute),
 		AliExpressAppKey:            getEnvOrDefault("ALIEXPRESS_APP_KEY", ""),
 		AliExpressAppSecret:         getEnvOrDefault("ALIEXPRESS_APP_SECRET", ""),
 		AliExpressDSAppKey:          getEnvOrDefault("ALIEXPRESS_DS_APP_KEY", ""),
@@ -72,6 +80,19 @@ func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 	}
 
 	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return defaultValue
+	}
+	return parsed
+}
+
+func getEnvAsInt(key string, defaultValue int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.Atoi(value)
 	if err != nil {
 		return defaultValue
 	}
