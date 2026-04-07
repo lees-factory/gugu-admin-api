@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math/rand/v2"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,8 @@ type SKUSnapshotUpdater struct {
 	statusStore      *BatchStatusStore
 	aliexpressClient aliexpress.Client
 	skuRecorder      SKUPriceRecorder
+	minDelay         time.Duration
+	maxDelay         time.Duration
 	runMu            sync.Mutex
 }
 
@@ -30,12 +33,16 @@ func NewSKUSnapshotUpdater(
 	statusStore *BatchStatusStore,
 	aliexpressClient aliexpress.Client,
 	skuRecorder SKUPriceRecorder,
+	minDelay time.Duration,
+	maxDelay time.Duration,
 ) *SKUSnapshotUpdater {
 	return &SKUSnapshotUpdater{
 		productService:   productService,
 		statusStore:      statusStore,
 		aliexpressClient: aliexpressClient,
 		skuRecorder:      skuRecorder,
+		minDelay:         minDelay,
+		maxDelay:         maxDelay,
 	}
 }
 
@@ -111,29 +118,45 @@ func (u *SKUSnapshotUpdater) Run(ctx context.Context, req PriceUpdateRequest) (*
 		log.Printf("[sku-snapshot-update %d/%d] loading skus for product=%s external=%s", i+1, len(targets), product.ID, product.ExternalProductID)
 
 		updatedCount := 0
-		for _, currency := range currenciesForProduct(product) {
-			detail, err := u.loadDropshippingDetail(ctx, product, currency)
+		hadError := false
+		currencies := currenciesForProduct(product)
+		for ci, currency := range currencies {
+			detail, err := u.loadDropshippingDetailWithRetry(ctx, product, currency)
 			if err != nil {
 				log.Printf("[sku-snapshot-update %d/%d] FAILED load currency=%s: %v", i+1, len(targets), currency, err)
+				hadError = true
+				result.LastError = err.Error()
 				continue
 			}
 
 			count, err := u.recordSKUPrices(ctx, product.ID, detail, currency)
 			if err != nil {
 				log.Printf("[sku-snapshot-update %d/%d] FAILED record currency=%s: %v", i+1, len(targets), currency, err)
+				hadError = true
+				result.LastError = err.Error()
 				continue
 			}
 			updatedCount += count
 			log.Printf("[sku-snapshot-update %d/%d] OK currency=%s sku_count=%d", i+1, len(targets), currency, count)
+
+			if ci < len(currencies)-1 {
+				u.randomDelay()
+			}
 		}
 
 		if updatedCount > 0 {
 			result.SuccessCount++
+		} else if hadError {
+			result.FailCount++
 		} else {
 			result.SkippedCount++
 		}
 
 		u.updateStatusFromResult(req, result, nil)
+
+		if i < len(targets)-1 {
+			u.randomDelay()
+		}
 	}
 
 	finishedAt := time.Now()
@@ -198,6 +221,27 @@ func (u *SKUSnapshotUpdater) loadDropshippingDetail(ctx context.Context, product
 	})
 }
 
+func (u *SKUSnapshotUpdater) loadDropshippingDetailWithRetry(ctx context.Context, product domainproduct.Product, currency string) (*aliexpress.DropshippingProductDetail, error) {
+	var detail *aliexpress.DropshippingProductDetail
+	var err error
+
+	for attempt := 0; attempt < 3; attempt++ {
+		detail, err = u.loadDropshippingDetail(ctx, product, currency)
+		if err == nil {
+			return detail, nil
+		}
+		if !strings.Contains(err.Error(), "AppApiCallLimit") {
+			return nil, err
+		}
+
+		wait := 25 * time.Second
+		log.Printf("sku snapshot %s currency=%s: rate limited, waiting %s (attempt %d/3)", product.ExternalProductID, currency, wait, attempt+1)
+		time.Sleep(wait)
+	}
+
+	return nil, err
+}
+
 func (u *SKUSnapshotUpdater) recordSKUPrices(ctx context.Context, productID string, detail *aliexpress.DropshippingProductDetail, currency string) (int, error) {
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
@@ -254,4 +298,19 @@ func normalizeSKUSnapshotUpdateRequest(req PriceUpdateRequest) PriceUpdateReques
 	req.JobType = JobTypeSKUSnapshotUpdate
 	req.Filter.CollectionSource = strings.TrimSpace(req.Filter.CollectionSource)
 	return req
+}
+
+func (u *SKUSnapshotUpdater) randomDelay() {
+	if u.maxDelay <= 0 || u.maxDelay <= u.minDelay {
+		if u.minDelay > 0 {
+			log.Printf("waiting %s before next request...", u.minDelay.Round(time.Second))
+			time.Sleep(u.minDelay)
+		}
+		return
+	}
+
+	diff := u.maxDelay - u.minDelay
+	delay := u.minDelay + time.Duration(rand.Int64N(int64(diff)))
+	log.Printf("waiting %s before next request...", delay.Round(time.Second))
+	time.Sleep(delay)
 }

@@ -111,6 +111,8 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 		batchStatusStore,
 		aliexpressClient,
 		priceHistoryRepo,
+		3*time.Second,
+		5*time.Second,
 	)
 	hotProductLoader := batch.NewHotProductLoader(aliexpressClient, productService, nil, priceHistoryRepo, productVariantRepo, idGen)
 	if cfg.PriceUpdateScheduleEnabled {
