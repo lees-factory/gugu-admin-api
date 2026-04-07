@@ -106,6 +106,12 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 		priceHistoryRepo,
 		productVariantRepo,
 	)
+	skuSnapshotUpdater := batch.NewSKUSnapshotUpdater(
+		productService,
+		batchStatusStore,
+		aliexpressClient,
+		priceHistoryRepo,
+	)
 	hotProductLoader := batch.NewHotProductLoader(aliexpressClient, productService, nil, priceHistoryRepo, productVariantRepo, idGen)
 	if cfg.PriceUpdateScheduleEnabled {
 		priceUpdateScheduler := batch.NewPriceUpdateScheduler(
@@ -133,7 +139,7 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 	}
 
 	// Controllers
-	batchController := batchctrl.NewController(skuEnricher, priceUpdater, hotProductLoader)
+	batchController := batchctrl.NewController(skuEnricher, priceUpdater, skuSnapshotUpdater, hotProductLoader)
 	batchController.RegisterRoutes(rg)
 	productController := productctrl.NewController(productService)
 	productController.RegisterRoutes(rg)

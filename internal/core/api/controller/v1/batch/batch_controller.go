@@ -3,6 +3,7 @@ package batch
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -15,9 +16,10 @@ import (
 )
 
 type Controller struct {
-	skuEnricher      *batch.SKUEnricher
-	priceUpdater     *batch.PriceUpdater
-	hotProductLoader *batch.HotProductLoader
+	skuEnricher        *batch.SKUEnricher
+	priceUpdater       *batch.PriceUpdater
+	skuSnapshotUpdater *batch.SKUSnapshotUpdater
+	hotProductLoader   *batch.HotProductLoader
 }
 
 type updatePricesRequest struct {
@@ -37,11 +39,17 @@ type loadHotProductsRequest struct {
 	MaxSalePrice string   `json:"max_sale_price"`
 }
 
-func NewController(skuEnricher *batch.SKUEnricher, priceUpdater *batch.PriceUpdater, hotProductLoader *batch.HotProductLoader) *Controller {
+func NewController(
+	skuEnricher *batch.SKUEnricher,
+	priceUpdater *batch.PriceUpdater,
+	skuSnapshotUpdater *batch.SKUSnapshotUpdater,
+	hotProductLoader *batch.HotProductLoader,
+) *Controller {
 	return &Controller{
-		skuEnricher:      skuEnricher,
-		priceUpdater:     priceUpdater,
-		hotProductLoader: hotProductLoader,
+		skuEnricher:        skuEnricher,
+		priceUpdater:       priceUpdater,
+		skuSnapshotUpdater: skuSnapshotUpdater,
+		hotProductLoader:   hotProductLoader,
 	}
 }
 
@@ -49,7 +57,8 @@ func (ctrl *Controller) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/batch/load-hot-products", ctrl.LoadHotProducts)
 	rg.POST("/batch/enrich-skus/hot-products", ctrl.EnrichHotProducts)
 	rg.POST("/batch/enrich-skus/all", ctrl.EnrichAll)
-	rg.POST("/batch/update-prices", ctrl.UpdatePrices)
+	rg.POST("/batch/update-product-prices", ctrl.UpdateProductPrices)
+	rg.POST("/batch/update-sku-snapshots", ctrl.UpdateSKUSnapshots)
 	rg.GET("/batch/status", ctrl.GetBatchStatus)
 }
 
@@ -116,7 +125,7 @@ func (ctrl *Controller) EnrichAll(c *gin.Context) {
 	}))
 }
 
-func (ctrl *Controller) UpdatePrices(c *gin.Context) {
+func (ctrl *Controller) UpdateProductPrices(c *gin.Context) {
 	req, err := decodeUpdatePricesRequest(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_REQUEST", err.Error()))
@@ -160,23 +169,83 @@ func (ctrl *Controller) UpdatePrices(c *gin.Context) {
 	}))
 }
 
-func (ctrl *Controller) GetBatchStatus(c *gin.Context) {
-	jobType := c.Query("job_type")
-	if jobType != "" && jobType != string(batch.JobTypePriceUpdate) {
-		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_JOB_TYPE", "unsupported job type"))
+func (ctrl *Controller) UpdateSKUSnapshots(c *gin.Context) {
+	req, err := decodeUpdatePricesRequest(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_REQUEST", err.Error()))
+		return
+	}
+	if req.Market != "" && !req.Market.IsSupported() {
+		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_MARKET", "unsupported market"))
 		return
 	}
 
-	status, ok := ctrl.priceUpdater.CurrentStatus()
+	batchReq := batch.PriceUpdateRequest{
+		TriggerType: batch.TriggerTypeManual,
+		RequestedBy: req.RequestedBy,
+		Filter: batch.PriceUpdateFilter{
+			CollectionSource: req.CollectionSource,
+			Market:           req.Market,
+			ProductIDs:       req.ProductIDs,
+			CollectedBefore:  req.CollectedBefore,
+			Force:            req.Force,
+		},
+	}
+
+	status, err := ctrl.skuSnapshotUpdater.Preview(c.Request.Context(), batchReq)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.ErrorFromCode("BATCH_PREVIEW_FAILED", err.Error()))
+		return
+	}
+
+	go func(request batch.PriceUpdateRequest) {
+		result, runErr := ctrl.skuSnapshotUpdater.Run(context.Background(), request)
+		if runErr != nil {
+			log.Printf("sku snapshot update batch failed: %v", runErr)
+			return
+		}
+		log.Printf("sku snapshot update batch completed: %+v", result)
+	}(batchReq)
+
+	c.JSON(http.StatusAccepted, response.SuccessWithData(gin.H{
+		"message": "sku snapshot update batch started",
+		"job":     status,
+	}))
+}
+
+func (ctrl *Controller) GetBatchStatus(c *gin.Context) {
+	jobType := c.Query("job_type")
+	status, ok, err := ctrl.currentStatus(jobType)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_JOB_TYPE", err.Error()))
+		return
+	}
 	if !ok {
+		selectedJobType := batch.JobTypePriceUpdate
+		if jobType == string(batch.JobTypeSKUSnapshotUpdate) {
+			selectedJobType = batch.JobTypeSKUSnapshotUpdate
+		}
 		c.JSON(http.StatusOK, response.SuccessWithData(gin.H{
-			"job_type": batch.JobTypePriceUpdate,
+			"job_type": selectedJobType,
 			"status":   nil,
 		}))
 		return
 	}
 
 	c.JSON(http.StatusOK, response.SuccessWithData(status))
+}
+
+func (ctrl *Controller) currentStatus(jobType string) (batch.BatchJobStatus, bool, error) {
+	switch jobType {
+	case "", string(batch.JobTypePriceUpdate):
+		status, ok := ctrl.priceUpdater.CurrentStatus()
+		return status, ok, nil
+	case string(batch.JobTypeSKUSnapshotUpdate):
+		status, ok := ctrl.skuSnapshotUpdater.CurrentStatus()
+		return status, ok, nil
+	default:
+		return batch.BatchJobStatus{}, false, fmt.Errorf("unsupported job type")
+	}
 }
 
 func decodeUpdatePricesRequest(c *gin.Context) (updatePricesRequest, error) {

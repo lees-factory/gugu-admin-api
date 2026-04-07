@@ -169,7 +169,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /v1/batch/update-prices:
+  /v1/batch/update-product-prices:
     post:
       tags:
         - batch
@@ -181,7 +181,7 @@ paths:
         일반 상품은 product의 대표 통화 기준 1개 locale만 갱신합니다.
         `collection_source = HOT_PRODUCT_QUERY` 상품만 KRW/KO, USD/EN 각각 조회하여 product_variant와 product_price_history, product_price_snapshot을 갱신합니다.
         product 마스터 테이블은 가격을 저장하지 않고 title, image, product_url, last_collected_at 같은 메타만 유지합니다.
-      operationId: updatePrices
+      operationId: updateProductPrices
       requestBody:
         required: false
         content:
@@ -205,6 +205,92 @@ paths:
       responses:
         '202':
           description: 가격 갱신 배치 시작됨
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Pragma:
+              $ref: '#/components/headers/Pragma'
+            Expires:
+              $ref: '#/components/headers/Expires'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceUpdateAcceptedResponse'
+        '400':
+          description: 잘못된 요청
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Pragma:
+              $ref: '#/components/headers/Pragma'
+            Expires:
+              $ref: '#/components/headers/Expires'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 관리자 인증 헤더 누락
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Pragma:
+              $ref: '#/components/headers/Pragma'
+            Expires:
+              $ref: '#/components/headers/Expires'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 프리뷰 실패
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Pragma:
+              $ref: '#/components/headers/Pragma'
+            Expires:
+              $ref: '#/components/headers/Expires'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/batch/update-sku-snapshots:
+    post:
+      tags:
+        - batch
+      security:
+        - AdminApiKey: []
+      summary: SKU snapshot 갱신 배치
+      description: |
+        대상 상품들의 SKU 가격을 AliExpress Dropshipping API에서 다시 조회하여 `sku_price_snapshot`을 갱신합니다.
+        SKU 가격이 직전 이력과 다를 때만 `sku_price_history`를 기록합니다.
+      operationId: updateSkuSnapshots
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PriceUpdateRequest'
+            examples:
+              allProducts:
+                summary: 전체 상품 대상
+                value: {}
+              hotProductsOnly:
+                summary: 인기 상품만
+                value:
+                  collection_source: HOT_PRODUCT_QUERY
+                  requested_by: admin
+              filteredByIds:
+                summary: 특정 상품만
+                value:
+                  product_ids:
+                    - product-id-1
+                    - product-id-2
+                  requested_by: admin
+      responses:
+        '202':
+          description: SKU snapshot 갱신 배치 시작됨
           headers:
             Cache-Control:
               $ref: '#/components/headers/Cache-Control'
@@ -341,6 +427,7 @@ paths:
             type: string
             enum:
               - PRICE_UPDATE
+              - SKU_SNAPSHOT_UPDATE
       responses:
         '200':
           description: 배치 상태
