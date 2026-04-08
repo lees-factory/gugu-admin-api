@@ -37,24 +37,10 @@ func (s *TokenRefreshScheduler) Start(ctx context.Context) {
 		return
 	}
 
-	ticker := time.NewTicker(s.interval)
-
 	go func() {
-		defer ticker.Stop()
-
-		log.Printf("token refresh scheduler started: interval=%s margin=%s", s.interval, s.refreshMargin)
-
 		s.runOnce(ctx)
 
-		for {
-			select {
-			case <-ctx.Done():
-				log.Printf("token refresh scheduler stopped: %v", ctx.Err())
-				return
-			case <-ticker.C:
-				s.runOnce(ctx)
-			}
-		}
+		startTickerLoop(ctx, "token refresh scheduler", s.interval, s.runOnce)
 	}()
 }
 

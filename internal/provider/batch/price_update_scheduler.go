@@ -23,23 +23,7 @@ func (s *PriceUpdateScheduler) Start(ctx context.Context) {
 		return
 	}
 
-	ticker := time.NewTicker(s.interval)
-
-	go func() {
-		defer ticker.Stop()
-
-		log.Printf("price update scheduler started: interval=%s", s.interval)
-
-		for {
-			select {
-			case <-ctx.Done():
-				log.Printf("price update scheduler stopped: %v", ctx.Err())
-				return
-			case <-ticker.C:
-				s.runOnce(ctx)
-			}
-		}
-	}()
+	startScheduleLoop(ctx, "price update scheduler", s.interval, shouldAlignToMidnight(s.interval), s.runOnce)
 }
 
 func (s *PriceUpdateScheduler) runOnce(ctx context.Context) {
