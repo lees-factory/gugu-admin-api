@@ -20,6 +20,10 @@ func NewController(userService *domainuser.Service) *Controller {
 
 func (ctrl *Controller) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/users", ctrl.List)
+	rg.GET("/users/:user_id/sessions", ctrl.ListSessions)
+	rg.POST("/users/:user_id/sessions/revoke", ctrl.RevokeAllSessions)
+	rg.POST("/users/:user_id/sessions/:session_id/revoke", ctrl.RevokeSessionByID)
+	rg.POST("/users/:user_id/sessions/token-families/:token_family_id/revoke", ctrl.RevokeTokenFamily)
 }
 
 func (ctrl *Controller) List(c *gin.Context) {
@@ -122,4 +126,123 @@ func toAdminSessionListResponse(sessions []domainuser.LoginSession) []adminSessi
 		}
 	}
 	return result
+}
+
+func (ctrl *Controller) ListSessions(c *gin.Context) {
+	userID := c.Param("user_id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_USER_ID", "user_id is required"))
+		return
+	}
+
+	filter := domainuser.SessionListFilter{
+		UserID: userID,
+	}
+
+	if statusRaw := c.Query("status"); statusRaw != "" {
+		status := domainuser.Status(statusRaw)
+		if status != domainuser.StatusActive && status != domainuser.StatusInactive {
+			c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_STATUS", "status must be ACTIVE or INACTIVE"))
+			return
+		}
+		filter.Status = status
+	}
+
+	if revokedRaw := c.Query("revoked"); revokedRaw != "" {
+		revoked, err := strconv.ParseBool(revokedRaw)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_REVOKED_FILTER", "revoked must be true or false"))
+			return
+		}
+		filter.Revoked = &revoked
+	}
+
+	if reuseDetectedRaw := c.Query("reuse_detected"); reuseDetectedRaw != "" {
+		reuseDetected, err := strconv.ParseBool(reuseDetectedRaw)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_REUSE_DETECTED_FILTER", "reuse_detected must be true or false"))
+			return
+		}
+		filter.ReuseDetected = &reuseDetected
+	}
+
+	sessions, err := ctrl.userService.ListSessions(c.Request.Context(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.ErrorFromCode("USER_SESSION_LIST_FAILED", err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.SuccessWithData(gin.H{
+		"user_id": userID,
+		"count":   len(sessions),
+		"items":   toAdminSessionListResponse(sessions),
+	}))
+}
+
+func (ctrl *Controller) RevokeAllSessions(c *gin.Context) {
+	userID := c.Param("user_id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_USER_ID", "user_id is required"))
+		return
+	}
+
+	revokedCount, err := ctrl.userService.RevokeAllSessions(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.ErrorFromCode("USER_SESSION_REVOKE_ALL_FAILED", err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.SuccessWithData(gin.H{
+		"user_id":        userID,
+		"revoked_count":  revokedCount,
+		"operation_type": "REVOKE_ALL_BY_USER",
+	}))
+}
+
+func (ctrl *Controller) RevokeSessionByID(c *gin.Context) {
+	userID := c.Param("user_id")
+	sessionID := c.Param("session_id")
+	if userID == "" || sessionID == "" {
+		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_SESSION_TARGET", "user_id and session_id are required"))
+		return
+	}
+
+	revoked, err := ctrl.userService.RevokeSessionByID(c.Request.Context(), userID, sessionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.ErrorFromCode("USER_SESSION_REVOKE_ONE_FAILED", err.Error()))
+		return
+	}
+	if !revoked {
+		c.JSON(http.StatusNotFound, response.ErrorFromCode("SESSION_NOT_FOUND", "session not found or already revoked"))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.SuccessWithData(gin.H{
+		"user_id":        userID,
+		"session_id":     sessionID,
+		"revoked":        true,
+		"operation_type": "REVOKE_ONE_BY_SESSION_ID",
+	}))
+}
+
+func (ctrl *Controller) RevokeTokenFamily(c *gin.Context) {
+	userID := c.Param("user_id")
+	tokenFamilyID := c.Param("token_family_id")
+	if userID == "" || tokenFamilyID == "" {
+		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_TOKEN_FAMILY_TARGET", "user_id and token_family_id are required"))
+		return
+	}
+
+	revokedCount, err := ctrl.userService.RevokeTokenFamily(c.Request.Context(), userID, tokenFamilyID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.ErrorFromCode("USER_SESSION_REVOKE_FAMILY_FAILED", err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.SuccessWithData(gin.H{
+		"user_id":         userID,
+		"token_family_id": tokenFamilyID,
+		"revoked_count":   revokedCount,
+		"operation_type":  "REVOKE_BY_TOKEN_FAMILY",
+	}))
 }

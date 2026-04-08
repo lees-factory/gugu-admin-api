@@ -90,3 +90,10 @@ type ListResult struct {
 	TotalCount int64
 	Users      []User
 }
+
+type SessionListFilter struct {
+	UserID        string
+	Status        Status
+	Revoked       *bool
+	ReuseDetected *bool
+}

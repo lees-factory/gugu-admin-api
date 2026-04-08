@@ -47,7 +47,7 @@ func NewServer(cfg config.Config, db *sql.DB) *gin.Engine {
 	})
 
 	v1 := r.Group("/v1")
-	v1.Use(middleware.AdminAuth())
+	v1.Use(middleware.AdminAuth(cfg.AdminAPIKeys))
 	{
 		registerRoutes(v1, cfg, db)
 	}
@@ -139,6 +139,14 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 			cfg.HotProductScheduleInterval,
 		)
 		hotProductScheduler.Start(context.Background())
+	}
+	if cfg.SessionCleanupEnabled {
+		sessionCleanupScheduler := batch.NewSessionCleanupScheduler(
+			userService,
+			cfg.SessionCleanupInterval,
+			cfg.SessionCleanupRetentionDays,
+		)
+		sessionCleanupScheduler.Start(context.Background())
 	}
 
 	// Controllers

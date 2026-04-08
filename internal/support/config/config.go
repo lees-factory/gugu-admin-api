@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Port                        string
 	CORSAllowedOrigins          []string
+	AdminAPIKeys                []string
 	DatabaseURL                 string
 	DBMaxOpenConns              int
 	DBMaxIdleConns              int
@@ -25,12 +26,16 @@ type Config struct {
 	TokenRefreshInterval        time.Duration
 	HotProductScheduleEnabled   bool
 	HotProductScheduleInterval  time.Duration
+	SessionCleanupEnabled       bool
+	SessionCleanupInterval      time.Duration
+	SessionCleanupRetentionDays int
 }
 
 func Load() Config {
 	return Config{
 		Port:                        getEnvOrDefault("PORT", "8700"),
 		CORSAllowedOrigins:          getEnvAsCSV("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://127.0.0.1:5173"}),
+		AdminAPIKeys:                getEnvAsCSV("ADMIN_API_KEYS", nil),
 		DatabaseURL:                 getEnvOrDefault("DATABASE_URL", ""),
 		DBMaxOpenConns:              getEnvAsInt("DB_MAX_OPEN_CONNS", 10),
 		DBMaxIdleConns:              getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
@@ -46,6 +51,9 @@ func Load() Config {
 		TokenRefreshInterval:        getEnvAsDuration("TOKEN_REFRESH_SCHEDULE_INTERVAL", 12*time.Hour),
 		HotProductScheduleEnabled:   getEnvAsBool("HOT_PRODUCT_SCHEDULE_ENABLED", false),
 		HotProductScheduleInterval:  getEnvAsDuration("HOT_PRODUCT_SCHEDULE_INTERVAL", 24*time.Hour),
+		SessionCleanupEnabled:       getEnvAsBool("SESSION_CLEANUP_SCHEDULE_ENABLED", false),
+		SessionCleanupInterval:      getEnvAsDuration("SESSION_CLEANUP_SCHEDULE_INTERVAL", 24*time.Hour),
+		SessionCleanupRetentionDays: getEnvAsInt("SESSION_CLEANUP_RETENTION_DAYS", 90),
 	}
 }
 

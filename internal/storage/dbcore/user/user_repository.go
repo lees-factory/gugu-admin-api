@@ -86,6 +86,94 @@ func (r *SQLCRepository) Count(ctx context.Context, filter domainuser.ListFilter
 	return count, nil
 }
 
+func (r *SQLCRepository) ListSessions(ctx context.Context, filter domainuser.SessionListFilter) ([]domainuser.LoginSession, error) {
+	rows, err := r.db.QueryContext(
+		ctx,
+		listSessionsByUserIDQuery,
+		filter.UserID,
+		string(filter.Status),
+		nullBoolPointerToAny(filter.Revoked),
+		nullBoolPointerToAny(filter.ReuseDetected),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]domainuser.LoginSession, 0)
+	for rows.Next() {
+		var session domainuser.LoginSession
+		var parentSessionID sql.NullString
+		var rotatedAt sql.NullTime
+		var revokedAt sql.NullTime
+		var reuseDetectedAt sql.NullTime
+		if err := rows.Scan(
+			&session.ID,
+			&session.UserID,
+			&session.RefreshTokenHash,
+			&session.TokenFamilyID,
+			&parentSessionID,
+			&session.UserAgent,
+			&session.ClientIP,
+			&session.DeviceName,
+			&session.ExpiresAt,
+			&session.LastSeenAt,
+			&rotatedAt,
+			&revokedAt,
+			&reuseDetectedAt,
+			&session.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		session.ParentSessionID = toNullStringPtr(parentSessionID)
+		session.RotatedAt = toNullTimePtr(rotatedAt)
+		session.RevokedAt = toNullTimePtr(revokedAt)
+		session.ReuseDetectedAt = toNullTimePtr(reuseDetectedAt)
+		result = append(result, session)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (r *SQLCRepository) RevokeSessionsByUserID(ctx context.Context, userID string) (int64, error) {
+	res, err := r.db.ExecContext(ctx, revokeAllSessionsByUserIDQuery, userID)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+func (r *SQLCRepository) RevokeSessionByID(ctx context.Context, userID, sessionID string) (bool, error) {
+	res, err := r.db.ExecContext(ctx, revokeOneSessionByIDQuery, userID, sessionID)
+	if err != nil {
+		return false, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return affected > 0, nil
+}
+
+func (r *SQLCRepository) RevokeSessionsByTokenFamily(ctx context.Context, userID, tokenFamilyID string) (int64, error) {
+	res, err := r.db.ExecContext(ctx, revokeSessionsByTokenFamilyQuery, userID, tokenFamilyID)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+func (r *SQLCRepository) CleanupInactiveSessionsBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	res, err := r.db.ExecContext(ctx, cleanupInactiveSessionsBeforeQuery, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func activeAfter() time.Time {
 	return time.Now().AddDate(0, 0, -30)
 }
@@ -151,6 +239,13 @@ func toNullStringPtr(value sql.NullString) *string {
 		return nil
 	}
 	return &value.String
+}
+
+func nullBoolPointerToAny(value *bool) any {
+	if value == nil {
+		return nil
+	}
+	return *value
 }
 
 const countAdminUsersQuery = `
@@ -263,3 +358,79 @@ SELECT
 FROM gugu.user_login_session
 WHERE user_id = ANY($1::text[])
 ORDER BY created_at DESC`
+
+const listSessionsByUserIDQuery = `
+SELECT
+    id,
+    user_id,
+    refresh_token_hash,
+    token_family_id,
+    parent_session_id,
+    user_agent,
+    client_ip,
+    device_name,
+    expires_at,
+    last_seen_at,
+    rotated_at,
+    revoked_at,
+    reuse_detected_at,
+    created_at
+FROM gugu.user_login_session
+WHERE user_id = $1
+  AND (
+      $2::text = ''
+      OR (
+          $2::text = 'ACTIVE'
+          AND revoked_at IS NULL
+          AND reuse_detected_at IS NULL
+          AND rotated_at IS NULL
+          AND expires_at > NOW()
+      )
+      OR (
+          $2::text = 'INACTIVE'
+          AND (
+              revoked_at IS NOT NULL
+              OR reuse_detected_at IS NOT NULL
+              OR rotated_at IS NOT NULL
+              OR expires_at <= NOW()
+          )
+      )
+  )
+  AND (
+      $3::boolean IS NULL
+      OR (revoked_at IS NOT NULL) = $3::boolean
+  )
+  AND (
+      $4::boolean IS NULL
+      OR (reuse_detected_at IS NOT NULL) = $4::boolean
+  )
+ORDER BY created_at DESC`
+
+const revokeAllSessionsByUserIDQuery = `
+UPDATE gugu.user_login_session
+SET revoked_at = NOW()
+WHERE user_id = $1
+  AND revoked_at IS NULL`
+
+const revokeOneSessionByIDQuery = `
+UPDATE gugu.user_login_session
+SET revoked_at = NOW()
+WHERE user_id = $1
+  AND id = $2
+  AND revoked_at IS NULL`
+
+const revokeSessionsByTokenFamilyQuery = `
+UPDATE gugu.user_login_session
+SET revoked_at = NOW()
+WHERE user_id = $1
+  AND token_family_id = $2
+  AND revoked_at IS NULL`
+
+const cleanupInactiveSessionsBeforeQuery = `
+DELETE FROM gugu.user_login_session
+WHERE (
+    expires_at < $1
+    OR (rotated_at IS NOT NULL AND rotated_at < $1)
+    OR (revoked_at IS NOT NULL AND revoked_at < $1)
+    OR (reuse_detected_at IS NOT NULL AND reuse_detected_at < $1)
+)`
