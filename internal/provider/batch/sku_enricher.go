@@ -115,64 +115,54 @@ func (e *SKUEnricher) enrichSingleFromDropshipping(ctx context.Context, p domain
 
 	totalUpserted := 0
 
-	for ci, currency := range enum.SupportedCurrencies {
-		lang := enum.LanguageForCurrency(currency)
+	currency := normalizeRepresentativeCurrency(p.Currency)
+	lang := enum.LanguageForCurrency(currency)
 
-		var detail *aliexpress.DropshippingProductDetail
-		var err error
-		for attempt := 0; attempt < 3; attempt++ {
-			detail, err = e.aliexpressClient.GetDropshippingProduct(ctx, aliexpress.DropshippingProductRequest{
-				ProductID:             p.ExternalProductID,
-				ShipToCountry:         "KR",
-				TargetCurrency:        currency,
-				TargetLanguage:        lang,
-				RemovePersonalBenefit: true,
-			})
-			if err != nil && strings.Contains(err.Error(), "AppApiCallLimit") {
-				wait := 10 * time.Second
-				log.Printf("dropshipping %s currency=%s: rate limited, waiting %s (attempt %d/3)", p.ExternalProductID, currency, wait, attempt+1)
-				time.Sleep(wait)
-				continue
-			}
-			break
-		}
-		if err != nil {
-			log.Printf("dropshipping %s currency=%s: %v", p.ExternalProductID, currency, err)
+	var detail *aliexpress.DropshippingProductDetail
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		detail, err = e.aliexpressClient.GetDropshippingProduct(ctx, aliexpress.DropshippingProductRequest{
+			ProductID:             p.ExternalProductID,
+			ShipToCountry:         "KR",
+			TargetCurrency:        currency,
+			TargetLanguage:        lang,
+			RemovePersonalBenefit: true,
+		})
+		if err != nil && strings.Contains(err.Error(), "AppApiCallLimit") {
+			wait := 10 * time.Second
+			log.Printf("dropshipping %s currency=%s: rate limited, waiting %s (attempt %d/3)", p.ExternalProductID, currency, wait, attempt+1)
+			time.Sleep(wait)
 			continue
 		}
+		break
+	}
+	if err != nil {
+		return 0, fmt.Errorf("load dropshipping product %s currency=%s: %w", p.ExternalProductID, currency, err)
+	}
 
-		// 첫 번째 통화(KRW)에서만 SKU upsert (테이블 데이터는 대표 통화 기준)
-		if ci == 0 {
-			skuInputs := make([]domainproduct.NewSKU, len(detail.SKUs))
-			for i, sku := range detail.SKUs {
-				skuInputs[i] = domainproduct.NewSKU{
-					ExternalSKUID: strings.TrimSpace(sku.SKUID),
-					OriginSKUID:   strings.TrimSpace(sku.OriginSKUID),
-					SKUName:       strings.TrimSpace(sku.SKUName),
-					Color:         strings.TrimSpace(sku.Color),
-					Size:          strings.TrimSpace(sku.Size),
-					Price:         firstNonEmpty(strings.TrimSpace(sku.OfferSalePrice), strings.TrimSpace(sku.Price)),
-					OriginalPrice: strings.TrimSpace(sku.Price),
-					Currency:      firstNonEmpty(strings.TrimSpace(sku.CurrencyCode), strings.TrimSpace(detail.CurrencyCode)),
-					ImageURL:      strings.TrimSpace(sku.ImageURL),
-					SKUProperties: strings.TrimSpace(sku.SKUAttr),
-				}
-			}
-
-			upserted, err := e.productService.EnrichSKUs(ctx, p.ID, skuInputs)
-			if err != nil {
-				return 0, fmt.Errorf("enrich skus %s: %w", p.ExternalProductID, err)
-			}
-			totalUpserted = upserted
-		}
-
-		// 모든 통화에서 sku_price_history 기록
-		e.recordSKUPrices(ctx, p.ID, detail, currency)
-
-		if ci < len(enum.SupportedCurrencies)-1 {
-			e.randomDelay()
+	skuInputs := make([]domainproduct.NewSKU, len(detail.SKUs))
+	for i, sku := range detail.SKUs {
+		skuInputs[i] = domainproduct.NewSKU{
+			ExternalSKUID: strings.TrimSpace(sku.SKUID),
+			OriginSKUID:   strings.TrimSpace(sku.OriginSKUID),
+			SKUName:       strings.TrimSpace(sku.SKUName),
+			Color:         strings.TrimSpace(sku.Color),
+			Size:          strings.TrimSpace(sku.Size),
+			Price:         firstNonEmpty(strings.TrimSpace(sku.OfferSalePrice), strings.TrimSpace(sku.Price)),
+			OriginalPrice: strings.TrimSpace(sku.Price),
+			Currency:      firstNonEmpty(strings.TrimSpace(sku.CurrencyCode), strings.TrimSpace(detail.CurrencyCode)),
+			ImageURL:      strings.TrimSpace(sku.ImageURL),
+			SKUProperties: strings.TrimSpace(sku.SKUAttr),
 		}
 	}
+
+	upserted, err := e.productService.EnrichSKUs(ctx, p.ID, skuInputs)
+	if err != nil {
+		return 0, fmt.Errorf("enrich skus %s: %w", p.ExternalProductID, err)
+	}
+	totalUpserted = upserted
+
+	e.recordSKUPrices(ctx, p.ID, detail, currency)
 
 	return totalUpserted, nil
 }
