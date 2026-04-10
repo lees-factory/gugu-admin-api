@@ -15,6 +15,8 @@ type TokenRefreshScheduler struct {
 	dropshippingClient *aliexpress.PlatformClient
 	interval           time.Duration
 	refreshMargin      time.Duration
+	dailyRefreshWindow time.Duration
+	affiliateRTMargin  time.Duration
 }
 
 func NewTokenRefreshScheduler(
@@ -29,6 +31,8 @@ func NewTokenRefreshScheduler(
 		dropshippingClient: dropshippingClient,
 		interval:           interval,
 		refreshMargin:      6 * time.Hour,
+		dailyRefreshWindow: 24 * time.Hour,
+		affiliateRTMargin:  24 * time.Hour,
 	}
 }
 
@@ -51,6 +55,9 @@ func (s *TokenRefreshScheduler) runOnce(ctx context.Context) {
 		return
 	}
 
+	tokens = s.addDropshippingDailyCandidate(ctx, tokens)
+	tokens = s.addAffiliateRefreshExpiryCandidate(ctx, tokens)
+
 	if len(tokens) == 0 {
 		log.Printf("token refresh scheduler: no tokens need refresh")
 		return
@@ -59,6 +66,57 @@ func (s *TokenRefreshScheduler) runOnce(ctx context.Context) {
 	for _, t := range tokens {
 		s.refreshOne(ctx, t)
 	}
+}
+
+func containsAppType(tokens []domaintoken.SellerToken, appType domaintoken.AppType) bool {
+	for _, t := range tokens {
+		if t.AppType == appType {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *TokenRefreshScheduler) addDropshippingDailyCandidate(ctx context.Context, tokens []domaintoken.SellerToken) []domaintoken.SellerToken {
+	if containsAppType(tokens, domaintoken.AppTypeDropshipping) {
+		return tokens
+	}
+
+	dsToken, err := s.tokenService.GetByAppType(ctx, domaintoken.AppTypeDropshipping)
+	if err != nil {
+		log.Printf("token refresh scheduler: failed to get dropshipping token for daily refresh: %v", err)
+		return tokens
+	}
+	if dsToken == nil {
+		return tokens
+	}
+
+	if s.tokenService.Now().Sub(dsToken.LastRefreshedAt) < s.dailyRefreshWindow {
+		return tokens
+	}
+
+	return append(tokens, *dsToken)
+}
+
+func (s *TokenRefreshScheduler) addAffiliateRefreshExpiryCandidate(ctx context.Context, tokens []domaintoken.SellerToken) []domaintoken.SellerToken {
+	if containsAppType(tokens, domaintoken.AppTypeAffiliate) {
+		return tokens
+	}
+
+	afToken, err := s.tokenService.GetByAppType(ctx, domaintoken.AppTypeAffiliate)
+	if err != nil {
+		log.Printf("token refresh scheduler: failed to get affiliate token for refresh-token expiry check: %v", err)
+		return tokens
+	}
+	if afToken == nil || afToken.RefreshTokenExpiresAt == nil {
+		return tokens
+	}
+
+	if s.tokenService.Now().Add(s.affiliateRTMargin).Before(*afToken.RefreshTokenExpiresAt) {
+		return tokens
+	}
+
+	return append(tokens, *afToken)
 }
 
 func (s *TokenRefreshScheduler) refreshOne(ctx context.Context, t domaintoken.SellerToken) {
