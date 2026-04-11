@@ -20,6 +20,7 @@ import (
 	"github.com/ljj/gugu-admin-api/internal/provider/batch"
 	dbcorepricehistory "github.com/ljj/gugu-admin-api/internal/storage/dbcore/pricehistory"
 	dbcoreproduct "github.com/ljj/gugu-admin-api/internal/storage/dbcore/product"
+	dbcoreproductalias "github.com/ljj/gugu-admin-api/internal/storage/dbcore/productalias"
 	dbcoreproductvariant "github.com/ljj/gugu-admin-api/internal/storage/dbcore/productvariant"
 	dbcoretoken "github.com/ljj/gugu-admin-api/internal/storage/dbcore/token"
 	dbcoreuser "github.com/ljj/gugu-admin-api/internal/storage/dbcore/user"
@@ -62,6 +63,7 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 	userRepo := dbcoreuser.NewSQLCRepository(db)
 	tokenRepo := dbcoretoken.NewSQLCRepository(db)
 	priceHistoryRepo := dbcorepricehistory.NewRepository(db)
+	productAliasRepo := dbcoreproductalias.NewSQLRepository(db)
 	productVariantRepo := dbcoreproductvariant.NewSQLCRepository(db)
 	idGen := id.NewGenerator()
 	clk := clock.New()
@@ -95,8 +97,8 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 		productService,
 		aliexpressClient,
 		priceHistoryRepo,
-		3*time.Second,
-		5*time.Second,
+		cfg.SKUEnrichMinDelay,
+		cfg.SKUEnrichMaxDelay,
 	)
 	priceSource := batch.NewAliExpressPriceSource(aliexpressClient, 500*time.Millisecond)
 	priceUpdater := batch.NewPriceUpdater(
@@ -111,10 +113,10 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 		batchStatusStore,
 		aliexpressClient,
 		priceHistoryRepo,
-		2*time.Second,
-		3*time.Second,
+		cfg.SKUSnapshotMinDelay,
+		cfg.SKUSnapshotMaxDelay,
 	)
-	hotProductLoader := batch.NewHotProductLoader(aliexpressClient, productService, nil, priceHistoryRepo, productVariantRepo, idGen)
+	hotProductLoader := batch.NewHotProductLoader(aliexpressClient, productService, nil, priceHistoryRepo, productVariantRepo, productAliasRepo, idGen)
 	if cfg.PriceUpdateScheduleEnabled {
 		priceUpdateScheduler := batch.NewPriceUpdateScheduler(
 			priceUpdater,
@@ -137,6 +139,7 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 			skuEnricher,
 			skuSnapshotUpdater,
 			cfg.HotProductScheduleInterval,
+			cfg.HotProductSnapshotStagger,
 		)
 		hotProductScheduler.Start(context.Background())
 	}

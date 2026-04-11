@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -36,7 +37,18 @@ type HotProductLoader struct {
 	hotProductRepo *hotproduct.SQLCRepository
 	priceRecorder  PriceHistoryRecorder
 	variantWriter  ProductVariantWriter
+	aliasRepo      ProductAliasRepository
 	idGen          *id.Generator
+}
+
+var (
+	aliexpressItemPattern  = regexp.MustCompile(`/item/([0-9]+)(?:\.html)?`)
+	aliexpressShortPattern = regexp.MustCompile(`/i/([0-9]+)\.html`)
+)
+
+type ProductAliasRepository interface {
+	FindProductIDByAlias(ctx context.Context, market enum.Market, aliasExternalProductID string) (string, error)
+	UpsertViewAlias(ctx context.Context, market enum.Market, aliasExternalProductID, productID string) error
 }
 
 func NewHotProductLoader(
@@ -45,6 +57,7 @@ func NewHotProductLoader(
 	hotProductRepo *hotproduct.SQLCRepository,
 	priceRecorder PriceHistoryRecorder,
 	variantWriter ProductVariantWriter,
+	aliasRepo ProductAliasRepository,
 	idGen *id.Generator,
 ) *HotProductLoader {
 	return &HotProductLoader{
@@ -53,6 +66,7 @@ func NewHotProductLoader(
 		hotProductRepo: hotProductRepo,
 		priceRecorder:  priceRecorder,
 		variantWriter:  variantWriter,
+		aliasRepo:      aliasRepo,
 		idGen:          idGen,
 	}
 }
@@ -124,16 +138,24 @@ func (l *HotProductLoader) processHotProductItem(
 	now time.Time,
 	today time.Time,
 ) (bool, bool, error) {
-	externalProductID := strings.TrimSpace(item.ProductID)
+	viewExternalProductID := strings.TrimSpace(item.ProductID)
 	title := strings.TrimSpace(item.ProductTitle)
 	imageURL := strings.TrimSpace(item.ProductMainImageURL)
 	productURL := strings.TrimSpace(item.ProductDetailURL)
 	price := firstNonEmpty(item.TargetSalePrice, item.SalePrice)
 	currency := firstNonEmpty(item.TargetSalePriceCurrency, item.SalePriceCurrency, requestedCurrency)
+	originProductID := resolveOriginProductID(viewExternalProductID, productURL)
+	lookupProductID := firstNonEmpty(originProductID, viewExternalProductID)
 
-	existing, err := l.productService.FindByMarketAndExternalProductID(ctx, enum.MarketAliExpress, externalProductID)
+	existing, err := l.findExistingByExternalOrAlias(ctx, enum.MarketAliExpress, lookupProductID)
 	if err != nil {
-		return false, false, fmt.Errorf("check existing product %s: %w", externalProductID, err)
+		return false, false, fmt.Errorf("check existing product %s: %w", lookupProductID, err)
+	}
+	if existing == nil && viewExternalProductID != "" && viewExternalProductID != lookupProductID {
+		existing, err = l.findExistingByExternalOrAlias(ctx, enum.MarketAliExpress, viewExternalProductID)
+		if err != nil {
+			return false, false, fmt.Errorf("check existing product by view id %s: %w", viewExternalProductID, err)
+		}
 	}
 
 	var productID string
@@ -143,7 +165,7 @@ func (l *HotProductLoader) processHotProductItem(
 	if existing == nil && currency == enum.SupportedCurrencies[0] {
 		created, err := l.productService.Create(ctx, domainproduct.NewProduct{
 			Market:            enum.MarketAliExpress,
-			ExternalProductID: externalProductID,
+			ExternalProductID: lookupProductID,
 			OriginalURL:       productURL,
 			Title:             title,
 			MainImageURL:      imageURL,
@@ -153,7 +175,7 @@ func (l *HotProductLoader) processHotProductItem(
 			CollectionSource:  domainproduct.CollectionSourceHotProductQuery,
 		})
 		if err != nil {
-			return false, false, fmt.Errorf("save product %s: %w", externalProductID, err)
+			return false, false, fmt.Errorf("save product %s: %w", lookupProductID, err)
 		}
 		productID = created.ID
 		productSaved = true
@@ -170,10 +192,13 @@ func (l *HotProductLoader) processHotProductItem(
 	}
 
 	if err := l.recordProductPrice(ctx, productID, price, currency, now, today); err != nil {
-		log.Printf("record hot product price %s currency=%s failed: %v", externalProductID, currency, err)
+		log.Printf("record hot product price %s currency=%s failed: %v", lookupProductID, currency, err)
 	}
 	if err := l.upsertProductVariant(ctx, productID, title, imageURL, productURL, price, currency, now); err != nil {
-		log.Printf("upsert product variant %s currency=%s failed: %v", externalProductID, currency, err)
+		log.Printf("upsert product variant %s currency=%s failed: %v", lookupProductID, currency, err)
+	}
+	if err := l.upsertViewAlias(ctx, enum.MarketAliExpress, viewExternalProductID, productID); err != nil {
+		log.Printf("upsert product alias %s failed: %v", viewExternalProductID, err)
 	}
 
 	return productSaved, skipped, nil
@@ -220,4 +245,61 @@ func (l *HotProductLoader) upsertProductVariant(ctx context.Context, productID, 
 		price,
 		collectedAt,
 	)
+}
+
+func (l *HotProductLoader) findExistingByExternalOrAlias(ctx context.Context, market enum.Market, externalProductID string) (*domainproduct.Product, error) {
+	existing, err := l.productService.FindByMarketAndExternalProductID(ctx, market, externalProductID)
+	if err != nil || existing != nil || l.aliasRepo == nil {
+		return existing, err
+	}
+
+	productID, err := l.aliasRepo.FindProductIDByAlias(ctx, market, externalProductID)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(productID) == "" {
+		return nil, nil
+	}
+
+	resolved, err := l.productService.FindByID(ctx, productID)
+	if err != nil {
+		log.Printf("alias resolved product is missing: market=%s alias=%s product_id=%s err=%v", market, externalProductID, productID, err)
+		return nil, nil
+	}
+	return resolved, nil
+}
+
+func (l *HotProductLoader) upsertViewAlias(ctx context.Context, market enum.Market, aliasExternalProductID, productID string) error {
+	if l.aliasRepo == nil {
+		return nil
+	}
+	aliasExternalProductID = strings.TrimSpace(aliasExternalProductID)
+	productID = strings.TrimSpace(productID)
+	if aliasExternalProductID == "" || productID == "" {
+		return nil
+	}
+
+	return l.aliasRepo.UpsertViewAlias(ctx, market, aliasExternalProductID, productID)
+}
+
+func resolveOriginProductID(viewExternalProductID, productURL string) string {
+	if id := extractAliExpressProductIDFromURL(productURL); id != "" {
+		return id
+	}
+	return strings.TrimSpace(viewExternalProductID)
+}
+
+func extractAliExpressProductIDFromURL(rawURL string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return ""
+	}
+
+	if match := aliexpressItemPattern.FindStringSubmatch(rawURL); len(match) > 1 {
+		return strings.TrimSpace(match[1])
+	}
+	if match := aliexpressShortPattern.FindStringSubmatch(rawURL); len(match) > 1 {
+		return strings.TrimSpace(match[1])
+	}
+	return ""
 }

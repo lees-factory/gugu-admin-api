@@ -22,10 +22,15 @@ type Config struct {
 	AliExpressDSAppSecret       string
 	PriceUpdateScheduleEnabled  bool
 	PriceUpdateScheduleInterval time.Duration
+	SKUEnrichMinDelay           time.Duration
+	SKUEnrichMaxDelay           time.Duration
+	SKUSnapshotMinDelay         time.Duration
+	SKUSnapshotMaxDelay         time.Duration
 	TokenRefreshEnabled         bool
 	TokenRefreshInterval        time.Duration
 	HotProductScheduleEnabled   bool
 	HotProductScheduleInterval  time.Duration
+	HotProductSnapshotStagger   time.Duration
 	SessionCleanupEnabled       bool
 	SessionCleanupInterval      time.Duration
 	SessionCleanupRetentionDays int
@@ -47,10 +52,15 @@ func Load() Config {
 		AliExpressDSAppSecret:       getEnvOrDefault("ALIEXPRESS_DS_APP_SECRET", ""),
 		PriceUpdateScheduleEnabled:  getEnvAsBool("PRICE_UPDATE_SCHEDULE_ENABLED", false),
 		PriceUpdateScheduleInterval: getEnvAsDuration("PRICE_UPDATE_SCHEDULE_INTERVAL", 24*time.Hour),
+		SKUEnrichMinDelay:           getEnvAsDuration("SKU_ENRICH_MIN_DELAY", 4*time.Second),
+		SKUEnrichMaxDelay:           getEnvAsDuration("SKU_ENRICH_MAX_DELAY", 7*time.Second),
+		SKUSnapshotMinDelay:         getEnvAsDuration("SKU_SNAPSHOT_MIN_DELAY", 3*time.Second),
+		SKUSnapshotMaxDelay:         getEnvAsDuration("SKU_SNAPSHOT_MAX_DELAY", 5*time.Second),
 		TokenRefreshEnabled:         getEnvAsBool("TOKEN_REFRESH_SCHEDULE_ENABLED", false),
 		TokenRefreshInterval:        getEnvAsDuration("TOKEN_REFRESH_SCHEDULE_INTERVAL", 12*time.Hour),
 		HotProductScheduleEnabled:   getEnvAsBool("HOT_PRODUCT_SCHEDULE_ENABLED", false),
 		HotProductScheduleInterval:  getEnvAsDuration("HOT_PRODUCT_SCHEDULE_INTERVAL", 24*time.Hour),
+		HotProductSnapshotStagger:   getEnvAsDuration("HOT_PRODUCT_SNAPSHOT_STAGGER", 20*time.Minute),
 		SessionCleanupEnabled:       getEnvAsBool("SESSION_CLEANUP_SCHEDULE_ENABLED", false),
 		SessionCleanupInterval:      getEnvAsDuration("SESSION_CLEANUP_SCHEDULE_INTERVAL", 24*time.Hour),
 		SessionCleanupRetentionDays: getEnvAsInt("SESSION_CLEANUP_RETENTION_DAYS", 90),

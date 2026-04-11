@@ -4,6 +4,9 @@ import (
 	"context"
 	"log"
 	"time"
+
+	domainproduct "github.com/ljj/gugu-admin-api/internal/core/domain/product"
+	"github.com/ljj/gugu-admin-api/internal/core/enum"
 )
 
 type HotProductScheduler struct {
@@ -11,6 +14,7 @@ type HotProductScheduler struct {
 	skuEnricher *SKUEnricher
 	snapshotter *SKUSnapshotUpdater
 	interval    time.Duration
+	stagger     time.Duration
 	input       HotProductLoadInput
 }
 
@@ -19,12 +23,14 @@ func NewHotProductScheduler(
 	skuEnricher *SKUEnricher,
 	snapshotter *SKUSnapshotUpdater,
 	interval time.Duration,
+	stagger time.Duration,
 ) *HotProductScheduler {
 	return &HotProductScheduler{
 		loader:      loader,
 		skuEnricher: skuEnricher,
 		snapshotter: snapshotter,
 		interval:    interval,
+		stagger:     stagger,
 		input:       HotProductLoadInput{},
 	}
 }
@@ -62,29 +68,57 @@ func (s *HotProductScheduler) runOnce(ctx context.Context) {
 		return
 	}
 
+	currencies := []string{enum.SupportedCurrencies[0], enum.SupportedCurrencies[1]}
+	for i, currency := range currencies {
+		if err := s.runSnapshotForCurrency(ctx, currency); err != nil {
+			log.Printf("hot product scheduler snapshot currency=%s failed: %v", currency, err)
+		}
+		if i < len(currencies)-1 {
+			s.waitStagger(ctx)
+		}
+	}
+}
+
+func (s *HotProductScheduler) runSnapshotForCurrency(ctx context.Context, currency string) error {
 	req := PriceUpdateRequest{
 		TriggerType: TriggerTypeScheduled,
 		RequestedBy: "internal-scheduler",
+		Filter: PriceUpdateFilter{
+			CollectionSource: domainproduct.CollectionSourceHotProductQuery,
+			Currencies:       []string{currency},
+		},
 		Metadata: map[string]string{
 			"runner":   "internal-scheduler",
 			"pipeline": "hot-product-scheduler",
+			"currency": currency,
 		},
 	}
 
 	status, err := s.snapshotter.Preview(ctx, req)
 	if err != nil {
-		log.Printf("hot product scheduler snapshot preview failed: %v", err)
-		return
+		return err
 	}
-
-	log.Printf("hot product scheduler snapshot triggered: total=%d", status.TotalCount)
+	log.Printf("hot product scheduler snapshot triggered: currency=%s total=%d", currency, status.TotalCount)
 
 	resultStatus, err := s.snapshotter.Run(ctx, req)
 	if err != nil {
-		log.Printf("hot product scheduler snapshot run failed: %v", err)
+		return err
+	}
+	log.Printf("hot product scheduler snapshot completed: currency=%s total=%d success=%d fail=%d skipped=%d",
+		currency, resultStatus.TotalCount, resultStatus.SuccessCount, resultStatus.FailCount, resultStatus.SkippedCount)
+	return nil
+}
+
+func (s *HotProductScheduler) waitStagger(ctx context.Context) {
+	if s.stagger <= 0 {
 		return
 	}
+	timer := time.NewTimer(s.stagger)
+	defer timer.Stop()
 
-	log.Printf("hot product scheduler snapshot completed: total=%d success=%d fail=%d skipped=%d",
-		resultStatus.TotalCount, resultStatus.SuccessCount, resultStatus.FailCount, resultStatus.SkippedCount)
+	log.Printf("hot product scheduler stagger wait: %s", s.stagger)
+	select {
+	case <-ctx.Done():
+	case <-timer.C:
+	}
 }

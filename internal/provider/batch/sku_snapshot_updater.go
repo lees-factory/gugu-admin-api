@@ -119,23 +119,27 @@ func (u *SKUSnapshotUpdater) Run(ctx context.Context, req PriceUpdateRequest) (*
 
 		updatedCount := 0
 		hadError := false
-		currency := normalizeRepresentativeCurrency(product.Currency)
+		currencies := currenciesForProduct(product, req.Filter)
 
-		detail, err := u.loadDropshippingDetailWithRetry(ctx, product, currency)
-		if err != nil {
-			log.Printf("[sku-snapshot-update %d/%d] FAILED load currency=%s: %v", i+1, len(targets), currency, err)
-			hadError = true
-			result.LastError = err.Error()
-		} else {
+		for _, currency := range currencies {
+			detail, err := u.loadDropshippingDetailWithRetry(ctx, product, currency)
+			if err != nil {
+				log.Printf("[sku-snapshot-update %d/%d] FAILED load currency=%s: %v", i+1, len(targets), currency, err)
+				hadError = true
+				result.LastError = err.Error()
+				continue
+			}
+
 			count, recordErr := u.recordSKUPrices(ctx, product.ID, detail, currency)
 			if recordErr != nil {
 				log.Printf("[sku-snapshot-update %d/%d] FAILED record currency=%s: %v", i+1, len(targets), currency, recordErr)
 				hadError = true
 				result.LastError = recordErr.Error()
-			} else {
-				updatedCount += count
-				log.Printf("[sku-snapshot-update %d/%d] OK currency=%s sku_count=%d", i+1, len(targets), currency, count)
+				continue
 			}
+
+			updatedCount += count
+			log.Printf("[sku-snapshot-update %d/%d] OK currency=%s sku_count=%d", i+1, len(targets), currency, count)
 		}
 
 		if updatedCount > 0 {

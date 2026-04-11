@@ -41,6 +41,7 @@ type PriceUpdateFilter struct {
 	CollectionSource string      `json:"collection_source,omitempty"`
 	Market           enum.Market `json:"market,omitempty"`
 	ProductIDs       []string    `json:"product_ids,omitempty"`
+	Currencies       []string    `json:"currencies,omitempty"`
 	CollectedBefore  *time.Time  `json:"collected_before,omitempty"`
 	Force            bool        `json:"force"`
 }
@@ -211,7 +212,7 @@ func (u *PriceUpdater) Run(ctx context.Context, req PriceUpdateRequest) (*PriceU
 		anyUpdated := false
 		now := time.Now()
 		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		currencies := currenciesForProduct(product)
+		currencies := currenciesForProduct(product, req.Filter)
 		masterCurrency := normalizeRepresentativeCurrency(product.Currency)
 
 		for _, currency := range currencies {
@@ -348,6 +349,7 @@ func normalizePriceUpdateRequest(req PriceUpdateRequest) PriceUpdateRequest {
 	}
 	req.Filter.CollectionSource = strings.TrimSpace(req.Filter.CollectionSource)
 	req.Filter.ProductIDs = compactStrings(req.Filter.ProductIDs)
+	req.Filter.Currencies = normalizeRequestedCurrencies(req.Filter.Currencies)
 	return req
 }
 
@@ -362,7 +364,10 @@ func normalizeRepresentativeCurrency(currency string) string {
 	return enum.SupportedCurrencies[0]
 }
 
-func currenciesForProduct(product domainproduct.Product) []string {
+func currenciesForProduct(product domainproduct.Product, filter PriceUpdateFilter) []string {
+	if len(filter.Currencies) > 0 {
+		return filter.Currencies
+	}
 	if product.CollectionSource == domainproduct.CollectionSourceHotProductQuery {
 		return enum.SupportedCurrencies
 	}
@@ -378,6 +383,28 @@ func compactStrings(values []string) []string {
 		}
 		result = append(result, trimmed)
 	}
+	return result
+}
+
+func normalizeRequestedCurrencies(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+
+	for _, value := range values {
+		trimmed := strings.ToUpper(strings.TrimSpace(value))
+		if trimmed == "" {
+			continue
+		}
+		if !slices.Contains(enum.SupportedCurrencies, trimmed) {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+
 	return result
 }
 

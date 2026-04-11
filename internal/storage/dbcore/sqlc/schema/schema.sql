@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS gugu.oauth_identity (
 CREATE TABLE IF NOT EXISTS gugu.product (
     id TEXT PRIMARY KEY,
     market TEXT NOT NULL,
-    external_product_id TEXT NOT NULL,
+    origin_product_id TEXT NOT NULL,
     original_url TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL DEFAULT '',
     main_image_url TEXT NOT NULL DEFAULT '',
@@ -34,7 +34,18 @@ CREATE TABLE IF NOT EXISTS gugu.product (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     promotion_link TEXT NOT NULL DEFAULT '',
-    UNIQUE (market, external_product_id)
+    UNIQUE (market, origin_product_id)
+);
+
+CREATE TABLE IF NOT EXISTS gugu.product_external_alias (
+    id TEXT PRIMARY KEY,
+    market TEXT NOT NULL,
+    alias_external_product_id TEXT NOT NULL,
+    product_id TEXT NOT NULL REFERENCES gugu.product(id),
+    alias_type TEXT NOT NULL DEFAULT 'VIEW',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (market, alias_external_product_id)
 );
 
 CREATE TABLE IF NOT EXISTS gugu.product_variant (
@@ -155,7 +166,8 @@ CREATE INDEX IF NOT EXISTS idx_hot_product_collected_date ON gugu.hot_product(co
 
 CREATE INDEX IF NOT EXISTS idx_aliexpress_seller_token_app_type ON gugu.aliexpress_seller_token(app_type);
 
-CREATE INDEX IF NOT EXISTS idx_product_market_external_product_id ON gugu.product(market, external_product_id);
+CREATE INDEX IF NOT EXISTS idx_product_market_origin_product_id ON gugu.product(market, origin_product_id);
+CREATE INDEX IF NOT EXISTS idx_product_external_alias_product_id ON gugu.product_external_alias(product_id);
 CREATE INDEX IF NOT EXISTS idx_product_variant_language_currency ON gugu.product_variant(language, currency, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_product_variant_currency ON gugu.product_variant(currency, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_product_sku_product_id ON gugu.sku(product_id);

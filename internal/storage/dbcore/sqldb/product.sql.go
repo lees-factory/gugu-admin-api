@@ -14,7 +14,7 @@ import (
 
 const createProduct = `-- name: CreateProduct :exec
 INSERT INTO gugu.product (
-    id, market, external_product_id, original_url, title, main_image_url,
+    id, market, origin_product_id, original_url, title, main_image_url,
     product_url, collection_source, last_collected_at, created_at, updated_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
@@ -53,7 +53,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) er
 }
 
 const findProductByID = `-- name: FindProductByID :one
-SELECT id, market, external_product_id, original_url, title, main_image_url,
+SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
        '' AS current_price, '' AS currency, product_url, collection_source,
        last_collected_at, created_at, updated_at
 FROM gugu.product
@@ -98,11 +98,11 @@ func (q *Queries) FindProductByID(ctx context.Context, id string) (FindProductBy
 }
 
 const findProductByMarketAndExternalProductID = `-- name: FindProductByMarketAndExternalProductID :one
-SELECT id, market, external_product_id, original_url, title, main_image_url,
+SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
        '' AS current_price, '' AS currency, product_url, collection_source,
        last_collected_at, created_at, updated_at
 FROM gugu.product
-WHERE market = $1 AND external_product_id = $2
+WHERE market = $1 AND origin_product_id = $2
 `
 
 type FindProductByMarketAndExternalProductIDParams struct {
@@ -148,7 +148,7 @@ func (q *Queries) FindProductByMarketAndExternalProductID(ctx context.Context, a
 }
 
 const findProductsByIDs = `-- name: FindProductsByIDs :many
-SELECT id, market, external_product_id, original_url, title, main_image_url,
+SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
        '' AS current_price, '' AS currency, product_url, collection_source,
        last_collected_at, created_at, updated_at
 FROM gugu.product
@@ -212,7 +212,7 @@ const listAllLocalizedProducts = `-- name: ListAllLocalizedProducts :many
 SELECT
     p.id,
     p.market,
-    p.external_product_id,
+    p.origin_product_id AS external_product_id,
     p.original_url,
     COALESCE(pv.title, p.title) AS title,
     COALESCE(pv.main_image_url, p.main_image_url) AS main_image_url,
@@ -290,7 +290,7 @@ func (q *Queries) ListAllLocalizedProducts(ctx context.Context, arg ListAllLocal
 }
 
 const listAllProducts = `-- name: ListAllProducts :many
-SELECT id, market, external_product_id, original_url, title, main_image_url,
+SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
        '' AS current_price, '' AS currency, product_url, collection_source,
        last_collected_at, created_at, updated_at
 FROM gugu.product
@@ -354,7 +354,7 @@ const listLocalizedProductsByCollectionSource = `-- name: ListLocalizedProductsB
 SELECT
     p.id,
     p.market,
-    p.external_product_id,
+    p.origin_product_id AS external_product_id,
     p.original_url,
     COALESCE(pv.title, p.title) AS title,
     COALESCE(pv.main_image_url, p.main_image_url) AS main_image_url,
@@ -434,7 +434,7 @@ func (q *Queries) ListLocalizedProductsByCollectionSource(ctx context.Context, a
 }
 
 const listPriceUpdateCandidateProducts = `-- name: ListPriceUpdateCandidateProducts :many
-SELECT id, market, external_product_id, original_url, title, main_image_url,
+SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
        '' AS current_price, '' AS currency, product_url, collection_source,
        last_collected_at, created_at, updated_at
 FROM gugu.product
@@ -504,7 +504,7 @@ func (q *Queries) ListPriceUpdateCandidateProducts(ctx context.Context, arg List
 }
 
 const listProductsByCollectionSource = `-- name: ListProductsByCollectionSource :many
-SELECT id, market, external_product_id, original_url, title, main_image_url,
+SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
        '' AS current_price, '' AS currency, product_url, collection_source,
        last_collected_at, created_at, updated_at
 FROM gugu.product
@@ -566,7 +566,7 @@ func (q *Queries) ListProductsByCollectionSource(ctx context.Context, collection
 }
 
 const listProductsByMarket = `-- name: ListProductsByMarket :many
-SELECT id, market, external_product_id, original_url, title, main_image_url,
+SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
        '' AS current_price, '' AS currency, product_url, collection_source,
        last_collected_at, created_at, updated_at
 FROM gugu.product
@@ -628,7 +628,7 @@ func (q *Queries) ListProductsByMarket(ctx context.Context, market string) ([]Li
 }
 
 const listProductsWithoutSKUs = `-- name: ListProductsWithoutSKUs :many
-SELECT p.id, p.market, p.external_product_id, p.original_url, p.title,
+SELECT p.id, p.market, p.origin_product_id AS external_product_id, p.original_url, p.title,
        p.main_image_url, '' AS current_price, '' AS currency, p.product_url,
        p.collection_source, p.last_collected_at, p.created_at, p.updated_at
 FROM gugu.product p

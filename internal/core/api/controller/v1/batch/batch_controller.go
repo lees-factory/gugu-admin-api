@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,6 +28,7 @@ type updatePricesRequest struct {
 	CollectionSource string      `json:"collection_source"`
 	Market           enum.Market `json:"market"`
 	ProductIDs       []string    `json:"product_ids"`
+	Currencies       []string    `json:"currencies"`
 	CollectedBefore  *time.Time  `json:"collected_before"`
 	Force            bool        `json:"force"`
 	RequestedBy      string      `json:"requested_by"`
@@ -143,6 +146,7 @@ func (ctrl *Controller) UpdateProductPrices(c *gin.Context) {
 			CollectionSource: req.CollectionSource,
 			Market:           req.Market,
 			ProductIDs:       req.ProductIDs,
+			Currencies:       req.Currencies,
 			CollectedBefore:  req.CollectedBefore,
 			Force:            req.Force,
 		},
@@ -187,6 +191,7 @@ func (ctrl *Controller) UpdateSKUSnapshots(c *gin.Context) {
 			CollectionSource: req.CollectionSource,
 			Market:           req.Market,
 			ProductIDs:       req.ProductIDs,
+			Currencies:       req.Currencies,
 			CollectedBefore:  req.CollectedBefore,
 			Force:            req.Force,
 		},
@@ -253,6 +258,10 @@ func decodeUpdatePricesRequest(c *gin.Context) (updatePricesRequest, error) {
 	if err := decodeOptionalJSON(c, &req); err != nil {
 		return req, err
 	}
+	req.Currencies = normalizeCurrencies(req.Currencies)
+	if err := validateCurrencies(req.Currencies); err != nil {
+		return req, err
+	}
 	return req, nil
 }
 
@@ -269,5 +278,33 @@ func decodeOptionalJSON(c *gin.Context, target any) error {
 		return err
 	}
 
+	return nil
+}
+
+func normalizeCurrencies(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+
+	for _, value := range values {
+		trimmed := strings.ToUpper(strings.TrimSpace(value))
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+
+	return result
+}
+
+func validateCurrencies(values []string) error {
+	for _, value := range values {
+		if !slices.Contains(enum.SupportedCurrencies, value) {
+			return fmt.Errorf("unsupported currency: %s", value)
+		}
+	}
 	return nil
 }

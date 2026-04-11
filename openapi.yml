@@ -198,6 +198,9 @@ paths:
                 summary: 인기 상품만
                 value:
                   collection_source: HOT_PRODUCT_QUERY
+                  currencies:
+                    - KRW
+                    - USD
                   requested_by: admin
               filteredByMarket:
                 summary: 특정 시각 이전 수집된 AliExpress 상품
@@ -282,6 +285,9 @@ paths:
                 summary: 인기 상품만
                 value:
                   collection_source: HOT_PRODUCT_QUERY
+                  currencies:
+                    - KRW
+                    - USD
                   requested_by: admin
               filteredByIds:
                 summary: 특정 상품만
@@ -289,6 +295,8 @@ paths:
                   product_ids:
                     - product-id-1
                     - product-id-2
+                  currencies:
+                    - USD
                   requested_by: admin
       responses:
         '202':
@@ -1213,6 +1221,14 @@ components:
           description: 특정 내부 product.id 목록. external_product_id가 아니다.
           items:
             type: string
+        currencies:
+          type: array
+          description: 조회/적재 대상 통화. 미지정 시 기존 정책(상품 대표통화 또는 hot product의 KRW+USD)을 사용
+          items:
+            type: string
+            enum:
+              - KRW
+              - USD
         collected_before:
           type: string
           description: 이 시각 이전에 수집된 상품만 대상
@@ -1438,6 +1454,13 @@ components:
           type: array
           items:
             type: string
+        currencies:
+          type: array
+          items:
+            type: string
+            enum:
+              - KRW
+              - USD
         collected_before:
           type:
             - string
