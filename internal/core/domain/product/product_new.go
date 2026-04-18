@@ -8,8 +8,6 @@ type NewProduct struct {
 	OriginalURL       string
 	Title             string
 	MainImageURL      string
-	CurrentPrice      string
-	Currency          string
 	ProductURL        string
 	CollectionSource  string
 	SKUs              []NewSKU
@@ -21,9 +19,6 @@ type NewSKU struct {
 	SKUName       string
 	Color         string
 	Size          string
-	Price         string
-	OriginalPrice string
-	Currency      string
 	ImageURL      string
 	SKUProperties string
 }

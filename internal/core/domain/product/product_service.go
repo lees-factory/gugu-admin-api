@@ -49,6 +49,10 @@ func (s *Service) FindByMarketAndExternalProductID(ctx context.Context, market e
 	return s.finder.FindByMarketAndExternalProductID(ctx, market, strings.TrimSpace(externalProductID))
 }
 
+func (s *Service) ListActiveTrackedProductIDs(ctx context.Context) ([]string, error) {
+	return s.finder.ListActiveTrackedProductIDs(ctx)
+}
+
 func (s *Service) FindByIDs(ctx context.Context, productIDs []string) ([]Product, error) {
 	trimmed := make([]string, 0, len(productIDs))
 	for _, productID := range productIDs {
@@ -108,8 +112,6 @@ func (s *Service) Create(ctx context.Context, input NewProduct) (*Product, error
 		OriginalURL:       strings.TrimSpace(input.OriginalURL),
 		Title:             strings.TrimSpace(input.Title),
 		MainImageURL:      strings.TrimSpace(input.MainImageURL),
-		CurrentPrice:      strings.TrimSpace(input.CurrentPrice),
-		Currency:          strings.TrimSpace(input.Currency),
 		ProductURL:        strings.TrimSpace(input.ProductURL),
 		CollectionSource:  strings.TrimSpace(input.CollectionSource),
 		LastCollectedAt:   now,
@@ -134,9 +136,6 @@ func (s *Service) Create(ctx context.Context, input NewProduct) (*Product, error
 			SKUName:       strings.TrimSpace(skuInput.SKUName),
 			Color:         strings.TrimSpace(skuInput.Color),
 			Size:          strings.TrimSpace(skuInput.Size),
-			Price:         strings.TrimSpace(skuInput.Price),
-			OriginalPrice: strings.TrimSpace(skuInput.OriginalPrice),
-			Currency:      strings.TrimSpace(skuInput.Currency),
 			ImageURL:      strings.TrimSpace(skuInput.ImageURL),
 			SKUProperties: strings.TrimSpace(skuInput.SKUProperties),
 			CreatedAt:     now,
@@ -165,8 +164,6 @@ func (s *Service) CreateOrUpdateByMarketAndExternalProductID(ctx context.Context
 	found.OriginalURL = strings.TrimSpace(input.OriginalURL)
 	found.Title = strings.TrimSpace(input.Title)
 	found.MainImageURL = strings.TrimSpace(input.MainImageURL)
-	found.CurrentPrice = strings.TrimSpace(input.CurrentPrice)
-	found.Currency = strings.TrimSpace(input.Currency)
 	found.ProductURL = strings.TrimSpace(input.ProductURL)
 	found.CollectionSource = strings.TrimSpace(input.CollectionSource)
 	found.LastCollectedAt = now
@@ -248,9 +245,6 @@ func (s *Service) EnrichSKUs(ctx context.Context, productID string, skuInputs []
 			SKUName:       strings.TrimSpace(skuInput.SKUName),
 			Color:         strings.TrimSpace(skuInput.Color),
 			Size:          strings.TrimSpace(skuInput.Size),
-			Price:         strings.TrimSpace(skuInput.Price),
-			OriginalPrice: strings.TrimSpace(skuInput.OriginalPrice),
-			Currency:      strings.TrimSpace(skuInput.Currency),
 			ImageURL:      strings.TrimSpace(skuInput.ImageURL),
 			SKUProperties: strings.TrimSpace(skuInput.SKUProperties),
 			CreatedAt:     now,

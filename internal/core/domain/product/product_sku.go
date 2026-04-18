@@ -10,9 +10,6 @@ type SKU struct {
 	SKUName       string
 	Color         string
 	Size          string
-	Price         string
-	OriginalPrice string
-	Currency      string
 	ImageURL      string
 	SKUProperties string
 	CreatedAt     time.Time

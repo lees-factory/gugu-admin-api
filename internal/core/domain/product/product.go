@@ -13,8 +13,6 @@ type Product struct {
 	OriginalURL       string
 	Title             string
 	MainImageURL      string
-	CurrentPrice      string
-	Currency          string
 	ProductURL        string
 	CollectionSource  string
 	LastCollectedAt   time.Time
@@ -29,8 +27,6 @@ type LocalizedProduct struct {
 	OriginalURL       string
 	Title             string
 	MainImageURL      string
-	CurrentPrice      string
-	Currency          string
 	ProductURL        string
 	CollectionSource  string
 	LastCollectedAt   time.Time

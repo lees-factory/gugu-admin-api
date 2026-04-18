@@ -10,6 +10,7 @@ type Repository interface {
 	FindByID(ctx context.Context, productID string) (*Product, error)
 	FindByIDs(ctx context.Context, productIDs []string) ([]Product, error)
 	FindByMarketAndExternalProductID(ctx context.Context, market enum.Market, externalProductID string) (*Product, error)
+	ListActiveTrackedProductIDs(ctx context.Context) ([]string, error)
 	ListByMarket(ctx context.Context, market enum.Market) ([]Product, error)
 	ListByCollectionSource(ctx context.Context, collectionSource string) ([]Product, error)
 	ListAllLocalized(ctx context.Context, language string) ([]LocalizedProduct, error)
