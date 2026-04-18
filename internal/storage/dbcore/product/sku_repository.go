@@ -32,7 +32,7 @@ func (r *SKUSQLCRepository) FindByID(ctx context.Context, skuID string) (*domain
 		}
 		return nil, err
 	}
-	s := toDomainSKU(row)
+	s := toDomainSKUFromFindByID(row)
 	return &s, nil
 }
 
@@ -43,7 +43,7 @@ func (r *SKUSQLCRepository) FindByProductID(ctx context.Context, productID strin
 	}
 	result := make([]domainproduct.SKU, len(rows))
 	for i, row := range rows {
-		result[i] = toDomainSKU(row)
+		result[i] = toDomainSKUFromFindByProductID(row)
 	}
 	return result, nil
 }
@@ -59,7 +59,7 @@ func (r *SKUSQLCRepository) FindByProductIDAndExternalSKUID(ctx context.Context,
 		}
 		return nil, err
 	}
-	s := toDomainSKU(row)
+	s := toDomainSKUFromFindByProductIDAndExternalSKUID(row)
 	return &s, nil
 }
 
@@ -76,9 +76,6 @@ func toCreateSKUParams(s domainproduct.SKU) sqldb.CreateProductSKUParams {
 		SkuName:       s.SKUName,
 		Color:         s.Color,
 		Size:          s.Size,
-		Price:         s.Price,
-		OriginalPrice: s.OriginalPrice,
-		Currency:      s.Currency,
 		ImageUrl:      s.ImageURL,
 		SkuProperties: s.SKUProperties,
 		CreatedAt:     s.CreatedAt,
@@ -95,9 +92,6 @@ func toUpsertSKUParams(s domainproduct.SKU) sqldb.UpsertProductSKUParams {
 		SkuName:       s.SKUName,
 		Color:         s.Color,
 		Size:          s.Size,
-		Price:         s.Price,
-		OriginalPrice: s.OriginalPrice,
-		Currency:      s.Currency,
 		ImageUrl:      s.ImageURL,
 		SkuProperties: s.SKUProperties,
 		CreatedAt:     s.CreatedAt,
@@ -105,7 +99,7 @@ func toUpsertSKUParams(s domainproduct.SKU) sqldb.UpsertProductSKUParams {
 	}
 }
 
-func toDomainSKU(row sqldb.GuguSku) domainproduct.SKU {
+func toDomainSKUFromFindByID(row sqldb.FindProductSKUByIDRow) domainproduct.SKU {
 	return domainproduct.SKU{
 		ID:            row.ID,
 		ProductID:     row.ProductID,
@@ -114,9 +108,6 @@ func toDomainSKU(row sqldb.GuguSku) domainproduct.SKU {
 		SKUName:       row.SkuName,
 		Color:         row.Color,
 		Size:          row.Size,
-		Price:         row.Price,
-		OriginalPrice: row.OriginalPrice,
-		Currency:      row.Currency,
 		ImageURL:      row.ImageUrl,
 		SKUProperties: row.SkuProperties,
 		CreatedAt:     row.CreatedAt,
@@ -124,3 +115,34 @@ func toDomainSKU(row sqldb.GuguSku) domainproduct.SKU {
 	}
 }
 
+func toDomainSKUFromFindByProductID(row sqldb.FindProductSKUsByProductIDRow) domainproduct.SKU {
+	return domainproduct.SKU{
+		ID:            row.ID,
+		ProductID:     row.ProductID,
+		ExternalSKUID: row.ExternalSkuID,
+		OriginSKUID:   row.OriginSkuID,
+		SKUName:       row.SkuName,
+		Color:         row.Color,
+		Size:          row.Size,
+		ImageURL:      row.ImageUrl,
+		SKUProperties: row.SkuProperties,
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
+	}
+}
+
+func toDomainSKUFromFindByProductIDAndExternalSKUID(row sqldb.FindProductSKUByProductIDAndExternalSKUIDRow) domainproduct.SKU {
+	return domainproduct.SKU{
+		ID:            row.ID,
+		ProductID:     row.ProductID,
+		ExternalSKUID: row.ExternalSkuID,
+		OriginSKUID:   row.OriginSkuID,
+		SKUName:       row.SkuName,
+		Color:         row.Color,
+		Size:          row.Size,
+		ImageURL:      row.ImageUrl,
+		SKUProperties: row.SkuProperties,
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
+	}
+}

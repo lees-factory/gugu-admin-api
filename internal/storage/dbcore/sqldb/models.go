@@ -41,17 +41,13 @@ type GuguAppUser struct {
 	CreatedAt       time.Time    `json:"created_at"`
 }
 
-type GuguHotProduct struct {
-	ID                string    `json:"id"`
-	ExternalProductID string    `json:"external_product_id"`
-	Title             string    `json:"title"`
-	ImageUrl          string    `json:"image_url"`
-	ProductUrl        string    `json:"product_url"`
-	PromotionLink     string    `json:"promotion_link"`
-	SalePrice         string    `json:"sale_price"`
-	Currency          string    `json:"currency"`
-	CollectedDate     time.Time `json:"collected_date"`
-	CreatedAt         time.Time `json:"created_at"`
+type GuguEmailVerification struct {
+	Code      string       `json:"code"`
+	UserID    string       `json:"user_id"`
+	Email     string       `json:"email"`
+	ExpiresAt time.Time    `json:"expires_at"`
+	UsedAt    sql.NullTime `json:"used_at"`
+	CreatedAt time.Time    `json:"created_at"`
 }
 
 type GuguOauthIdentity struct {
@@ -64,64 +60,71 @@ type GuguOauthIdentity struct {
 	LastLoginAt time.Time `json:"last_login_at"`
 }
 
+type GuguPriceAlert struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	SkuID     string    `json:"sku_id"`
+	Channel   string    `json:"channel"`
+	Enabled   bool      `json:"enabled"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type GuguProduct struct {
-	ID                string    `json:"id"`
-	Market            string    `json:"market"`
-	ExternalProductID string    `json:"external_product_id"`
-	OriginalUrl       string    `json:"original_url"`
-	Title             string    `json:"title"`
-	MainImageUrl      string    `json:"main_image_url"`
-	ProductUrl        string    `json:"product_url"`
-	CollectionSource  string    `json:"collection_source"`
-	LastCollectedAt   time.Time `json:"last_collected_at"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
-	PromotionLink     string    `json:"promotion_link"`
+	ID               string    `json:"id"`
+	Market           string    `json:"market"`
+	OriginalUrl      string    `json:"original_url"`
+	Title            string    `json:"title"`
+	MainImageUrl     string    `json:"main_image_url"`
+	ProductUrl       string    `json:"product_url"`
+	CollectionSource string    `json:"collection_source"`
+	LastCollectedAt  time.Time `json:"last_collected_at"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	PromotionLink    string    `json:"promotion_link"`
+	OriginProductID  string    `json:"origin_product_id"`
 }
 
-type GuguProductPriceHistory struct {
-	ProductID   string         `json:"product_id"`
-	RecordedAt  time.Time      `json:"recorded_at"`
-	Price       string         `json:"price"`
-	Currency    string         `json:"currency"`
-	ChangeValue string         `json:"change_value"`
-	SkuID       sql.NullString `json:"sku_id"`
+type GuguProductExternalAlias struct {
+	ID                     string    `json:"id"`
+	Market                 string    `json:"market"`
+	AliasExternalProductID string    `json:"alias_external_product_id"`
+	ProductID              string    `json:"product_id"`
+	AliasType              string    `json:"alias_type"`
+	CreatedAt              time.Time `json:"created_at"`
+	UpdatedAt              time.Time `json:"updated_at"`
 }
 
-type GuguProductPriceSnapshot struct {
+type GuguProductLocalization struct {
 	ProductID    string    `json:"product_id"`
-	SnapshotDate time.Time `json:"snapshot_date"`
-	Price        string    `json:"price"`
-	Currency     string    `json:"currency"`
-}
-
-type GuguProductVariant struct {
-	ProductID       string       `json:"product_id"`
-	Language        string       `json:"language"`
-	Currency        string       `json:"currency"`
-	Title           string       `json:"title"`
-	MainImageUrl    string       `json:"main_image_url"`
-	ProductUrl      string       `json:"product_url"`
-	CurrentPrice    string       `json:"current_price"`
-	LastCollectedAt sql.NullTime `json:"last_collected_at"`
-	CreatedAt       time.Time    `json:"created_at"`
-	UpdatedAt       time.Time    `json:"updated_at"`
+	Language     string    `json:"language"`
+	Title        string    `json:"title"`
+	MainImageUrl string    `json:"main_image_url"`
+	ProductUrl   string    `json:"product_url"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type GuguSku struct {
 	ID            string    `json:"id"`
 	ProductID     string    `json:"product_id"`
 	ExternalSkuID string    `json:"external_sku_id"`
-	OriginSkuID   string    `json:"origin_sku_id"`
 	SkuName       string    `json:"sku_name"`
 	Color         string    `json:"color"`
 	Size          string    `json:"size"`
-	Price         string    `json:"price"`
-	OriginalPrice string    `json:"original_price"`
-	Currency      string    `json:"currency"`
 	ImageUrl      string    `json:"image_url"`
 	SkuProperties string    `json:"sku_properties"`
 	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	OriginSkuID   string    `json:"origin_sku_id"`
+}
+
+type GuguSkuLocalization struct {
+	SkuID         string    `json:"sku_id"`
+	Language      string    `json:"language"`
+	SkuName       string    `json:"sku_name"`
+	ColorName     string    `json:"color_name"`
+	SizeName      string    `json:"size_name"`
+	SkuProperties string    `json:"sku_properties"`
+	ImageUrl      string    `json:"image_url"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
@@ -141,12 +144,61 @@ type GuguSkuPriceSnapshot struct {
 	Currency      string    `json:"currency"`
 }
 
+type GuguSkuPriceSnapshotStaging struct {
+	RunID         string    `json:"run_id"`
+	SkuID         string    `json:"sku_id"`
+	SnapshotDate  time.Time `json:"snapshot_date"`
+	Price         string    `json:"price"`
+	OriginalPrice string    `json:"original_price"`
+	Currency      string    `json:"currency"`
+}
+
+type GuguSkuSnapshotIngestRun struct {
+	ID                string       `json:"id"`
+	ProductID         string       `json:"product_id"`
+	Currency          string       `json:"currency"`
+	SnapshotDate      time.Time    `json:"snapshot_date"`
+	ExpectedSkuCount  int32        `json:"expected_sku_count"`
+	CollectedSkuCount int32        `json:"collected_sku_count"`
+	Status            string       `json:"status"`
+	StartedAt         time.Time    `json:"started_at"`
+	FinishedAt        sql.NullTime `json:"finished_at"`
+	ErrorMessage      string       `json:"error_message"`
+}
+
+type GuguUserLoginSession struct {
+	ID               string         `json:"id"`
+	UserID           string         `json:"user_id"`
+	RefreshTokenHash string         `json:"refresh_token_hash"`
+	TokenFamilyID    string         `json:"token_family_id"`
+	ParentSessionID  sql.NullString `json:"parent_session_id"`
+	UserAgent        string         `json:"user_agent"`
+	ClientIp         string         `json:"client_ip"`
+	DeviceName       string         `json:"device_name"`
+	ExpiresAt        time.Time      `json:"expires_at"`
+	LastSeenAt       time.Time      `json:"last_seen_at"`
+	RotatedAt        sql.NullTime   `json:"rotated_at"`
+	RevokedAt        sql.NullTime   `json:"revoked_at"`
+	ReuseDetectedAt  sql.NullTime   `json:"reuse_detected_at"`
+	CreatedAt        time.Time      `json:"created_at"`
+}
+
 type GuguUserTrackedItem struct {
-	ID          string         `json:"id"`
-	UserID      string         `json:"user_id"`
-	ProductID   string         `json:"product_id"`
-	OriginalUrl string         `json:"original_url"`
-	CreatedAt   time.Time      `json:"created_at"`
-	DeletedAt   sql.NullTime   `json:"deleted_at"`
-	SkuID       sql.NullString `json:"sku_id"`
+	ID                    string         `json:"id"`
+	UserID                string         `json:"user_id"`
+	ProductID             string         `json:"product_id"`
+	OriginalUrl           string         `json:"original_url"`
+	CreatedAt             time.Time      `json:"created_at"`
+	DeletedAt             sql.NullTime   `json:"deleted_at"`
+	SkuID                 sql.NullString `json:"sku_id"`
+	Currency              string         `json:"currency"`
+	ViewExternalProductID string         `json:"view_external_product_id"`
+	PreferredLanguage     string         `json:"preferred_language"`
+	TrackingScope         string         `json:"tracking_scope"`
+}
+
+type GuguUserTrackedItemWatchSku struct {
+	TrackedItemID string    `json:"tracked_item_id"`
+	SkuID         string    `json:"sku_id"`
+	CreatedAt     time.Time `json:"created_at"`
 }

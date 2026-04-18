@@ -14,37 +14,32 @@ WHERE id = $1;
 
 -- name: FindProductByID :one
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
-       last_collected_at, created_at, updated_at
+       product_url, collection_source, last_collected_at, created_at, updated_at
 FROM gugu.product
 WHERE id = $1;
 
 -- name: FindProductByMarketAndExternalProductID :one
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
-       last_collected_at, created_at, updated_at
+       product_url, collection_source, last_collected_at, created_at, updated_at
 FROM gugu.product
 WHERE market = $1 AND origin_product_id = $2;
 
 -- name: FindProductsByIDs :many
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
-       last_collected_at, created_at, updated_at
+       product_url, collection_source, last_collected_at, created_at, updated_at
 FROM gugu.product
 WHERE id = ANY($1::text[]);
 
 -- name: ListProductsByMarket :many
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
-       last_collected_at, created_at, updated_at
+       product_url, collection_source, last_collected_at, created_at, updated_at
 FROM gugu.product
 WHERE market = $1
 ORDER BY created_at;
 
 -- name: ListAllProducts :many
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
-       last_collected_at, created_at, updated_at
+       product_url, collection_source, last_collected_at, created_at, updated_at
 FROM gugu.product
 ORDER BY created_at;
 
@@ -54,25 +49,22 @@ SELECT
     p.market,
     p.origin_product_id AS external_product_id,
     p.original_url,
-    COALESCE(pv.title, p.title) AS title,
-    COALESCE(pv.main_image_url, p.main_image_url) AS main_image_url,
-    COALESCE(pv.current_price, '') AS current_price,
-    $2::text AS currency,
-    COALESCE(pv.product_url, p.product_url) AS product_url,
+    COALESCE(pl.title, p.title) AS title,
+    COALESCE(pl.main_image_url, p.main_image_url) AS main_image_url,
+    COALESCE(pl.product_url, p.product_url) AS product_url,
     p.collection_source,
-    COALESCE(pv.last_collected_at, p.last_collected_at) AS last_collected_at,
+    p.last_collected_at,
     p.created_at,
-    GREATEST(p.updated_at, COALESCE(pv.updated_at, p.updated_at))::timestamptz AS updated_at
+    GREATEST(p.updated_at, COALESCE(pl.updated_at, p.updated_at))::timestamptz AS updated_at
 FROM gugu.product p
-LEFT JOIN gugu.product_variant pv
-    ON pv.product_id = p.id
-   AND pv.language = $1
-   AND pv.currency = $2
+LEFT JOIN gugu.product_localization pl
+    ON pl.product_id = p.id
+   AND pl.language = $1
 ORDER BY p.created_at;
 
 -- name: ListProductsWithoutSKUs :many
 SELECT p.id, p.market, p.origin_product_id AS external_product_id, p.original_url, p.title,
-       p.main_image_url, '' AS current_price, '' AS currency, p.product_url,
+       p.main_image_url, p.product_url,
        p.collection_source, p.last_collected_at, p.created_at, p.updated_at
 FROM gugu.product p
 LEFT JOIN gugu.sku s ON p.id = s.product_id
@@ -81,7 +73,7 @@ ORDER BY p.created_at;
 
 -- name: ListProductsByCollectionSource :many
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
+       product_url, collection_source,
        last_collected_at, created_at, updated_at
 FROM gugu.product
 WHERE collection_source = $1
@@ -93,29 +85,32 @@ SELECT
     p.market,
     p.origin_product_id AS external_product_id,
     p.original_url,
-    COALESCE(pv.title, p.title) AS title,
-    COALESCE(pv.main_image_url, p.main_image_url) AS main_image_url,
-    COALESCE(pv.current_price, '') AS current_price,
-    $3::text AS currency,
-    COALESCE(pv.product_url, p.product_url) AS product_url,
+    COALESCE(pl.title, p.title) AS title,
+    COALESCE(pl.main_image_url, p.main_image_url) AS main_image_url,
+    COALESCE(pl.product_url, p.product_url) AS product_url,
     p.collection_source,
-    COALESCE(pv.last_collected_at, p.last_collected_at) AS last_collected_at,
+    p.last_collected_at,
     p.created_at,
-    GREATEST(p.updated_at, COALESCE(pv.updated_at, p.updated_at))::timestamptz AS updated_at
+    GREATEST(p.updated_at, COALESCE(pl.updated_at, p.updated_at))::timestamptz AS updated_at
 FROM gugu.product p
-LEFT JOIN gugu.product_variant pv
-    ON pv.product_id = p.id
-   AND pv.language = $2
-   AND pv.currency = $3
+LEFT JOIN gugu.product_localization pl
+    ON pl.product_id = p.id
+   AND pl.language = $2
 WHERE p.collection_source = $1
 ORDER BY p.created_at;
 
 -- name: ListPriceUpdateCandidateProducts :many
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
+       product_url, collection_source,
        last_collected_at, created_at, updated_at
 FROM gugu.product
 WHERE ($1::text = '' OR collection_source = $1)
   AND ($2::text = '' OR market = $2)
   AND ($3::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR last_collected_at <= $3)
 ORDER BY last_collected_at, created_at;
+
+-- name: ListActiveTrackedProductIDs :many
+SELECT DISTINCT product_id
+FROM gugu.user_tracked_item
+WHERE deleted_at IS NULL
+ORDER BY product_id;

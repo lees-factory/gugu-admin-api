@@ -24,10 +24,10 @@ func (q *Queries) CountSKUsByProductID(ctx context.Context, productID string) (i
 const createProductSKU = `-- name: CreateProductSKU :exec
 INSERT INTO gugu.sku (
     id, product_id, external_sku_id, origin_sku_id, sku_name,
-    color, size, price, original_price, currency,
+    color, size,
     image_url, sku_properties, created_at, updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 )
 `
 
@@ -39,9 +39,6 @@ type CreateProductSKUParams struct {
 	SkuName       string    `json:"sku_name"`
 	Color         string    `json:"color"`
 	Size          string    `json:"size"`
-	Price         string    `json:"price"`
-	OriginalPrice string    `json:"original_price"`
-	Currency      string    `json:"currency"`
 	ImageUrl      string    `json:"image_url"`
 	SkuProperties string    `json:"sku_properties"`
 	CreatedAt     time.Time `json:"created_at"`
@@ -57,9 +54,6 @@ func (q *Queries) CreateProductSKU(ctx context.Context, arg CreateProductSKUPara
 		arg.SkuName,
 		arg.Color,
 		arg.Size,
-		arg.Price,
-		arg.OriginalPrice,
-		arg.Currency,
 		arg.ImageUrl,
 		arg.SkuProperties,
 		arg.CreatedAt,
@@ -70,15 +64,29 @@ func (q *Queries) CreateProductSKU(ctx context.Context, arg CreateProductSKUPara
 
 const findProductSKUByID = `-- name: FindProductSKUByID :one
 SELECT id, product_id, external_sku_id, origin_sku_id, sku_name,
-       color, size, price, original_price, currency,
+       color, size,
        image_url, sku_properties, created_at, updated_at
 FROM gugu.sku
 WHERE id = $1
 `
 
-func (q *Queries) FindProductSKUByID(ctx context.Context, id string) (GuguSku, error) {
+type FindProductSKUByIDRow struct {
+	ID            string    `json:"id"`
+	ProductID     string    `json:"product_id"`
+	ExternalSkuID string    `json:"external_sku_id"`
+	OriginSkuID   string    `json:"origin_sku_id"`
+	SkuName       string    `json:"sku_name"`
+	Color         string    `json:"color"`
+	Size          string    `json:"size"`
+	ImageUrl      string    `json:"image_url"`
+	SkuProperties string    `json:"sku_properties"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+func (q *Queries) FindProductSKUByID(ctx context.Context, id string) (FindProductSKUByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, findProductSKUByID, id)
-	var i GuguSku
+	var i FindProductSKUByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.ProductID,
@@ -87,9 +95,6 @@ func (q *Queries) FindProductSKUByID(ctx context.Context, id string) (GuguSku, e
 		&i.SkuName,
 		&i.Color,
 		&i.Size,
-		&i.Price,
-		&i.OriginalPrice,
-		&i.Currency,
 		&i.ImageUrl,
 		&i.SkuProperties,
 		&i.CreatedAt,
@@ -100,7 +105,7 @@ func (q *Queries) FindProductSKUByID(ctx context.Context, id string) (GuguSku, e
 
 const findProductSKUByProductIDAndExternalSKUID = `-- name: FindProductSKUByProductIDAndExternalSKUID :one
 SELECT id, product_id, external_sku_id, origin_sku_id, sku_name,
-       color, size, price, original_price, currency,
+       color, size,
        image_url, sku_properties, created_at, updated_at
 FROM gugu.sku
 WHERE product_id = $1 AND external_sku_id = $2
@@ -111,9 +116,23 @@ type FindProductSKUByProductIDAndExternalSKUIDParams struct {
 	ExternalSkuID string `json:"external_sku_id"`
 }
 
-func (q *Queries) FindProductSKUByProductIDAndExternalSKUID(ctx context.Context, arg FindProductSKUByProductIDAndExternalSKUIDParams) (GuguSku, error) {
+type FindProductSKUByProductIDAndExternalSKUIDRow struct {
+	ID            string    `json:"id"`
+	ProductID     string    `json:"product_id"`
+	ExternalSkuID string    `json:"external_sku_id"`
+	OriginSkuID   string    `json:"origin_sku_id"`
+	SkuName       string    `json:"sku_name"`
+	Color         string    `json:"color"`
+	Size          string    `json:"size"`
+	ImageUrl      string    `json:"image_url"`
+	SkuProperties string    `json:"sku_properties"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+func (q *Queries) FindProductSKUByProductIDAndExternalSKUID(ctx context.Context, arg FindProductSKUByProductIDAndExternalSKUIDParams) (FindProductSKUByProductIDAndExternalSKUIDRow, error) {
 	row := q.db.QueryRowContext(ctx, findProductSKUByProductIDAndExternalSKUID, arg.ProductID, arg.ExternalSkuID)
-	var i GuguSku
+	var i FindProductSKUByProductIDAndExternalSKUIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.ProductID,
@@ -122,9 +141,6 @@ func (q *Queries) FindProductSKUByProductIDAndExternalSKUID(ctx context.Context,
 		&i.SkuName,
 		&i.Color,
 		&i.Size,
-		&i.Price,
-		&i.OriginalPrice,
-		&i.Currency,
 		&i.ImageUrl,
 		&i.SkuProperties,
 		&i.CreatedAt,
@@ -135,22 +151,36 @@ func (q *Queries) FindProductSKUByProductIDAndExternalSKUID(ctx context.Context,
 
 const findProductSKUsByProductID = `-- name: FindProductSKUsByProductID :many
 SELECT id, product_id, external_sku_id, origin_sku_id, sku_name,
-       color, size, price, original_price, currency,
+       color, size,
        image_url, sku_properties, created_at, updated_at
 FROM gugu.sku
 WHERE product_id = $1
 ORDER BY created_at
 `
 
-func (q *Queries) FindProductSKUsByProductID(ctx context.Context, productID string) ([]GuguSku, error) {
+type FindProductSKUsByProductIDRow struct {
+	ID            string    `json:"id"`
+	ProductID     string    `json:"product_id"`
+	ExternalSkuID string    `json:"external_sku_id"`
+	OriginSkuID   string    `json:"origin_sku_id"`
+	SkuName       string    `json:"sku_name"`
+	Color         string    `json:"color"`
+	Size          string    `json:"size"`
+	ImageUrl      string    `json:"image_url"`
+	SkuProperties string    `json:"sku_properties"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+func (q *Queries) FindProductSKUsByProductID(ctx context.Context, productID string) ([]FindProductSKUsByProductIDRow, error) {
 	rows, err := q.db.QueryContext(ctx, findProductSKUsByProductID, productID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GuguSku{}
+	items := []FindProductSKUsByProductIDRow{}
 	for rows.Next() {
-		var i GuguSku
+		var i FindProductSKUsByProductIDRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ProductID,
@@ -159,9 +189,6 @@ func (q *Queries) FindProductSKUsByProductID(ctx context.Context, productID stri
 			&i.SkuName,
 			&i.Color,
 			&i.Size,
-			&i.Price,
-			&i.OriginalPrice,
-			&i.Currency,
 			&i.ImageUrl,
 			&i.SkuProperties,
 			&i.CreatedAt,
@@ -183,19 +210,16 @@ func (q *Queries) FindProductSKUsByProductID(ctx context.Context, productID stri
 const upsertProductSKU = `-- name: UpsertProductSKU :exec
 INSERT INTO gugu.sku (
     id, product_id, external_sku_id, origin_sku_id, sku_name,
-    color, size, price, original_price, currency,
+    color, size,
     image_url, sku_properties, created_at, updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 )
 ON CONFLICT (product_id, external_sku_id) DO UPDATE SET
     origin_sku_id = EXCLUDED.origin_sku_id,
     sku_name = EXCLUDED.sku_name,
     color = EXCLUDED.color,
     size = EXCLUDED.size,
-    price = EXCLUDED.price,
-    original_price = EXCLUDED.original_price,
-    currency = EXCLUDED.currency,
     image_url = EXCLUDED.image_url,
     sku_properties = EXCLUDED.sku_properties,
     updated_at = EXCLUDED.updated_at
@@ -209,9 +233,6 @@ type UpsertProductSKUParams struct {
 	SkuName       string    `json:"sku_name"`
 	Color         string    `json:"color"`
 	Size          string    `json:"size"`
-	Price         string    `json:"price"`
-	OriginalPrice string    `json:"original_price"`
-	Currency      string    `json:"currency"`
 	ImageUrl      string    `json:"image_url"`
 	SkuProperties string    `json:"sku_properties"`
 	CreatedAt     time.Time `json:"created_at"`
@@ -227,9 +248,6 @@ func (q *Queries) UpsertProductSKU(ctx context.Context, arg UpsertProductSKUPara
 		arg.SkuName,
 		arg.Color,
 		arg.Size,
-		arg.Price,
-		arg.OriginalPrice,
-		arg.Currency,
 		arg.ImageUrl,
 		arg.SkuProperties,
 		arg.CreatedAt,

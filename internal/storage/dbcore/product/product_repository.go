@@ -44,8 +44,8 @@ func (r *SQLCRepository) FindByIDs(ctx context.Context, productIDs []string) ([]
 
 func (r *SQLCRepository) FindByMarketAndExternalProductID(ctx context.Context, market enum.Market, externalProductID string) (*domainproduct.Product, error) {
 	row, err := r.queries.FindProductByMarketAndExternalProductID(ctx, sqldb.FindProductByMarketAndExternalProductIDParams{
-		Market:            string(market),
-		ExternalProductID: externalProductID,
+		Market:          string(market),
+		OriginProductID: externalProductID,
 	})
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -55,6 +55,10 @@ func (r *SQLCRepository) FindByMarketAndExternalProductID(ctx context.Context, m
 	}
 	p := toDomainProductByExternalID(row)
 	return &p, nil
+}
+
+func (r *SQLCRepository) ListActiveTrackedProductIDs(ctx context.Context) ([]string, error) {
+	return r.queries.ListActiveTrackedProductIDs(ctx)
 }
 
 func (r *SQLCRepository) ListByMarket(ctx context.Context, market enum.Market) ([]domainproduct.Product, error) {
@@ -82,10 +86,7 @@ func (r *SQLCRepository) ListByCollectionSource(ctx context.Context, collectionS
 }
 
 func (r *SQLCRepository) ListAllLocalized(ctx context.Context, language string) ([]domainproduct.LocalizedProduct, error) {
-	rows, err := r.queries.ListAllLocalizedProducts(ctx, sqldb.ListAllLocalizedProductsParams{
-		Language: language,
-		Column2:  enum.CurrencyForLanguage(language),
-	})
+	rows, err := r.queries.ListAllLocalizedProducts(ctx, language)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +101,6 @@ func (r *SQLCRepository) ListByCollectionSourceLocalized(ctx context.Context, co
 	rows, err := r.queries.ListLocalizedProductsByCollectionSource(ctx, sqldb.ListLocalizedProductsByCollectionSourceParams{
 		CollectionSource: collectionSource,
 		Language:         language,
-		Column3:          enum.CurrencyForLanguage(language),
 	})
 	if err != nil {
 		return nil, err
@@ -147,17 +147,17 @@ func (r *SQLCRepository) ListAll(ctx context.Context) ([]domainproduct.Product, 
 
 func (r *SQLCRepository) Create(ctx context.Context, p domainproduct.Product) error {
 	return r.queries.CreateProduct(ctx, sqldb.CreateProductParams{
-		ID:                p.ID,
-		Market:            string(p.Market),
-		ExternalProductID: p.ExternalProductID,
-		OriginalUrl:       p.OriginalURL,
-		Title:             p.Title,
-		MainImageUrl:      p.MainImageURL,
-		ProductUrl:        p.ProductURL,
-		CollectionSource:  p.CollectionSource,
-		LastCollectedAt:   p.LastCollectedAt,
-		CreatedAt:         p.CreatedAt,
-		UpdatedAt:         p.UpdatedAt,
+		ID:               p.ID,
+		Market:           string(p.Market),
+		OriginProductID:  p.ExternalProductID,
+		OriginalUrl:      p.OriginalURL,
+		Title:            p.Title,
+		MainImageUrl:     p.MainImageURL,
+		ProductUrl:       p.ProductURL,
+		CollectionSource: p.CollectionSource,
+		LastCollectedAt:  p.LastCollectedAt,
+		CreatedAt:        p.CreatedAt,
+		UpdatedAt:        p.UpdatedAt,
 	})
 }
 
@@ -183,8 +183,6 @@ func toDomainProduct(row sqldb.FindProductByIDRow) domainproduct.Product {
 		OriginalURL:       row.OriginalUrl,
 		Title:             row.Title,
 		MainImageURL:      row.MainImageUrl,
-		CurrentPrice:      row.CurrentPrice,
-		Currency:          row.Currency,
 		ProductURL:        row.ProductUrl,
 		CollectionSource:  row.CollectionSource,
 		LastCollectedAt:   row.LastCollectedAt,
@@ -201,8 +199,6 @@ func toDomainProductByExternalID(row sqldb.FindProductByMarketAndExternalProduct
 		OriginalURL:       row.OriginalUrl,
 		Title:             row.Title,
 		MainImageURL:      row.MainImageUrl,
-		CurrentPrice:      row.CurrentPrice,
-		Currency:          row.Currency,
 		ProductURL:        row.ProductUrl,
 		CollectionSource:  row.CollectionSource,
 		LastCollectedAt:   row.LastCollectedAt,
@@ -219,8 +215,6 @@ func toDomainProductByIDs(row sqldb.FindProductsByIDsRow) domainproduct.Product 
 		OriginalURL:       row.OriginalUrl,
 		Title:             row.Title,
 		MainImageURL:      row.MainImageUrl,
-		CurrentPrice:      row.CurrentPrice,
-		Currency:          row.Currency,
 		ProductURL:        row.ProductUrl,
 		CollectionSource:  row.CollectionSource,
 		LastCollectedAt:   row.LastCollectedAt,
@@ -237,8 +231,6 @@ func toDomainProductListAll(row sqldb.ListAllProductsRow) domainproduct.Product 
 		OriginalURL:       row.OriginalUrl,
 		Title:             row.Title,
 		MainImageURL:      row.MainImageUrl,
-		CurrentPrice:      row.CurrentPrice,
-		Currency:          row.Currency,
 		ProductURL:        row.ProductUrl,
 		CollectionSource:  row.CollectionSource,
 		LastCollectedAt:   row.LastCollectedAt,
@@ -255,8 +247,6 @@ func toDomainProductByMarket(row sqldb.ListProductsByMarketRow) domainproduct.Pr
 		OriginalURL:       row.OriginalUrl,
 		Title:             row.Title,
 		MainImageURL:      row.MainImageUrl,
-		CurrentPrice:      row.CurrentPrice,
-		Currency:          row.Currency,
 		ProductURL:        row.ProductUrl,
 		CollectionSource:  row.CollectionSource,
 		LastCollectedAt:   row.LastCollectedAt,
@@ -273,8 +263,6 @@ func toDomainProductByCollectionSource(row sqldb.ListProductsByCollectionSourceR
 		OriginalURL:       row.OriginalUrl,
 		Title:             row.Title,
 		MainImageURL:      row.MainImageUrl,
-		CurrentPrice:      row.CurrentPrice,
-		Currency:          row.Currency,
 		ProductURL:        row.ProductUrl,
 		CollectionSource:  row.CollectionSource,
 		LastCollectedAt:   row.LastCollectedAt,
@@ -291,8 +279,6 @@ func toDomainPriceUpdateCandidate(row sqldb.ListPriceUpdateCandidateProductsRow)
 		OriginalURL:       row.OriginalUrl,
 		Title:             row.Title,
 		MainImageURL:      row.MainImageUrl,
-		CurrentPrice:      row.CurrentPrice,
-		Currency:          row.Currency,
 		ProductURL:        row.ProductUrl,
 		CollectionSource:  row.CollectionSource,
 		LastCollectedAt:   row.LastCollectedAt,
@@ -309,8 +295,6 @@ func toDomainLocalizedProductFromListAll(row sqldb.ListAllLocalizedProductsRow, 
 		OriginalURL:       row.OriginalUrl,
 		Title:             row.Title,
 		MainImageURL:      row.MainImageUrl,
-		CurrentPrice:      row.CurrentPrice,
-		Currency:          row.Currency,
 		ProductURL:        row.ProductUrl,
 		CollectionSource:  row.CollectionSource,
 		LastCollectedAt:   row.LastCollectedAt,
@@ -328,8 +312,6 @@ func toDomainLocalizedProductFromCollection(row sqldb.ListLocalizedProductsByCol
 		OriginalURL:       row.OriginalUrl,
 		Title:             row.Title,
 		MainImageURL:      row.MainImageUrl,
-		CurrentPrice:      row.CurrentPrice,
-		Currency:          row.Currency,
 		ProductURL:        row.ProductUrl,
 		CollectionSource:  row.CollectionSource,
 		LastCollectedAt:   row.LastCollectedAt,

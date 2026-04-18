@@ -22,24 +22,24 @@ INSERT INTO gugu.product (
 `
 
 type CreateProductParams struct {
-	ID                string    `json:"id"`
-	Market            string    `json:"market"`
-	ExternalProductID string    `json:"external_product_id"`
-	OriginalUrl       string    `json:"original_url"`
-	Title             string    `json:"title"`
-	MainImageUrl      string    `json:"main_image_url"`
-	ProductUrl        string    `json:"product_url"`
-	CollectionSource  string    `json:"collection_source"`
-	LastCollectedAt   time.Time `json:"last_collected_at"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	ID               string    `json:"id"`
+	Market           string    `json:"market"`
+	OriginProductID  string    `json:"origin_product_id"`
+	OriginalUrl      string    `json:"original_url"`
+	Title            string    `json:"title"`
+	MainImageUrl     string    `json:"main_image_url"`
+	ProductUrl       string    `json:"product_url"`
+	CollectionSource string    `json:"collection_source"`
+	LastCollectedAt  time.Time `json:"last_collected_at"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) error {
 	_, err := q.db.ExecContext(ctx, createProduct,
 		arg.ID,
 		arg.Market,
-		arg.ExternalProductID,
+		arg.OriginProductID,
 		arg.OriginalUrl,
 		arg.Title,
 		arg.MainImageUrl,
@@ -54,8 +54,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) er
 
 const findProductByID = `-- name: FindProductByID :one
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
-       last_collected_at, created_at, updated_at
+       product_url, collection_source, last_collected_at, created_at, updated_at
 FROM gugu.product
 WHERE id = $1
 `
@@ -67,8 +66,6 @@ type FindProductByIDRow struct {
 	OriginalUrl       string    `json:"original_url"`
 	Title             string    `json:"title"`
 	MainImageUrl      string    `json:"main_image_url"`
-	CurrentPrice      string    `json:"current_price"`
-	Currency          string    `json:"currency"`
 	ProductUrl        string    `json:"product_url"`
 	CollectionSource  string    `json:"collection_source"`
 	LastCollectedAt   time.Time `json:"last_collected_at"`
@@ -86,8 +83,6 @@ func (q *Queries) FindProductByID(ctx context.Context, id string) (FindProductBy
 		&i.OriginalUrl,
 		&i.Title,
 		&i.MainImageUrl,
-		&i.CurrentPrice,
-		&i.Currency,
 		&i.ProductUrl,
 		&i.CollectionSource,
 		&i.LastCollectedAt,
@@ -99,15 +94,14 @@ func (q *Queries) FindProductByID(ctx context.Context, id string) (FindProductBy
 
 const findProductByMarketAndExternalProductID = `-- name: FindProductByMarketAndExternalProductID :one
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
-       last_collected_at, created_at, updated_at
+       product_url, collection_source, last_collected_at, created_at, updated_at
 FROM gugu.product
 WHERE market = $1 AND origin_product_id = $2
 `
 
 type FindProductByMarketAndExternalProductIDParams struct {
-	Market            string `json:"market"`
-	ExternalProductID string `json:"external_product_id"`
+	Market          string `json:"market"`
+	OriginProductID string `json:"origin_product_id"`
 }
 
 type FindProductByMarketAndExternalProductIDRow struct {
@@ -117,8 +111,6 @@ type FindProductByMarketAndExternalProductIDRow struct {
 	OriginalUrl       string    `json:"original_url"`
 	Title             string    `json:"title"`
 	MainImageUrl      string    `json:"main_image_url"`
-	CurrentPrice      string    `json:"current_price"`
-	Currency          string    `json:"currency"`
 	ProductUrl        string    `json:"product_url"`
 	CollectionSource  string    `json:"collection_source"`
 	LastCollectedAt   time.Time `json:"last_collected_at"`
@@ -127,7 +119,7 @@ type FindProductByMarketAndExternalProductIDRow struct {
 }
 
 func (q *Queries) FindProductByMarketAndExternalProductID(ctx context.Context, arg FindProductByMarketAndExternalProductIDParams) (FindProductByMarketAndExternalProductIDRow, error) {
-	row := q.db.QueryRowContext(ctx, findProductByMarketAndExternalProductID, arg.Market, arg.ExternalProductID)
+	row := q.db.QueryRowContext(ctx, findProductByMarketAndExternalProductID, arg.Market, arg.OriginProductID)
 	var i FindProductByMarketAndExternalProductIDRow
 	err := row.Scan(
 		&i.ID,
@@ -136,8 +128,6 @@ func (q *Queries) FindProductByMarketAndExternalProductID(ctx context.Context, a
 		&i.OriginalUrl,
 		&i.Title,
 		&i.MainImageUrl,
-		&i.CurrentPrice,
-		&i.Currency,
 		&i.ProductUrl,
 		&i.CollectionSource,
 		&i.LastCollectedAt,
@@ -149,8 +139,7 @@ func (q *Queries) FindProductByMarketAndExternalProductID(ctx context.Context, a
 
 const findProductsByIDs = `-- name: FindProductsByIDs :many
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
-       last_collected_at, created_at, updated_at
+       product_url, collection_source, last_collected_at, created_at, updated_at
 FROM gugu.product
 WHERE id = ANY($1::text[])
 `
@@ -162,8 +151,6 @@ type FindProductsByIDsRow struct {
 	OriginalUrl       string    `json:"original_url"`
 	Title             string    `json:"title"`
 	MainImageUrl      string    `json:"main_image_url"`
-	CurrentPrice      string    `json:"current_price"`
-	Currency          string    `json:"currency"`
 	ProductUrl        string    `json:"product_url"`
 	CollectionSource  string    `json:"collection_source"`
 	LastCollectedAt   time.Time `json:"last_collected_at"`
@@ -187,8 +174,6 @@ func (q *Queries) FindProductsByIDs(ctx context.Context, dollar_1 []string) ([]F
 			&i.OriginalUrl,
 			&i.Title,
 			&i.MainImageUrl,
-			&i.CurrentPrice,
-			&i.Currency,
 			&i.ProductUrl,
 			&i.CollectionSource,
 			&i.LastCollectedAt,
@@ -208,33 +193,55 @@ func (q *Queries) FindProductsByIDs(ctx context.Context, dollar_1 []string) ([]F
 	return items, nil
 }
 
+const listActiveTrackedProductIDs = `-- name: ListActiveTrackedProductIDs :many
+SELECT DISTINCT product_id
+FROM gugu.user_tracked_item
+WHERE deleted_at IS NULL
+ORDER BY product_id
+`
+
+func (q *Queries) ListActiveTrackedProductIDs(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveTrackedProductIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var product_id string
+		if err := rows.Scan(&product_id); err != nil {
+			return nil, err
+		}
+		items = append(items, product_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAllLocalizedProducts = `-- name: ListAllLocalizedProducts :many
 SELECT
     p.id,
     p.market,
     p.origin_product_id AS external_product_id,
     p.original_url,
-    COALESCE(pv.title, p.title) AS title,
-    COALESCE(pv.main_image_url, p.main_image_url) AS main_image_url,
-    COALESCE(pv.current_price, '') AS current_price,
-    $2::text AS currency,
-    COALESCE(pv.product_url, p.product_url) AS product_url,
+    COALESCE(pl.title, p.title) AS title,
+    COALESCE(pl.main_image_url, p.main_image_url) AS main_image_url,
+    COALESCE(pl.product_url, p.product_url) AS product_url,
     p.collection_source,
-    COALESCE(pv.last_collected_at, p.last_collected_at) AS last_collected_at,
+    p.last_collected_at,
     p.created_at,
-    GREATEST(p.updated_at, COALESCE(pv.updated_at, p.updated_at))::timestamptz AS updated_at
+    GREATEST(p.updated_at, COALESCE(pl.updated_at, p.updated_at))::timestamptz AS updated_at
 FROM gugu.product p
-LEFT JOIN gugu.product_variant pv
-    ON pv.product_id = p.id
-   AND pv.language = $1
-   AND pv.currency = $2
+LEFT JOIN gugu.product_localization pl
+    ON pl.product_id = p.id
+   AND pl.language = $1
 ORDER BY p.created_at
 `
-
-type ListAllLocalizedProductsParams struct {
-	Language string `json:"language"`
-	Column2  string `json:"column_2"`
-}
 
 type ListAllLocalizedProductsRow struct {
 	ID                string    `json:"id"`
@@ -243,8 +250,6 @@ type ListAllLocalizedProductsRow struct {
 	OriginalUrl       string    `json:"original_url"`
 	Title             string    `json:"title"`
 	MainImageUrl      string    `json:"main_image_url"`
-	CurrentPrice      string    `json:"current_price"`
-	Currency          string    `json:"currency"`
 	ProductUrl        string    `json:"product_url"`
 	CollectionSource  string    `json:"collection_source"`
 	LastCollectedAt   time.Time `json:"last_collected_at"`
@@ -252,8 +257,8 @@ type ListAllLocalizedProductsRow struct {
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
-func (q *Queries) ListAllLocalizedProducts(ctx context.Context, arg ListAllLocalizedProductsParams) ([]ListAllLocalizedProductsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAllLocalizedProducts, arg.Language, arg.Column2)
+func (q *Queries) ListAllLocalizedProducts(ctx context.Context, language string) ([]ListAllLocalizedProductsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAllLocalizedProducts, language)
 	if err != nil {
 		return nil, err
 	}
@@ -268,8 +273,6 @@ func (q *Queries) ListAllLocalizedProducts(ctx context.Context, arg ListAllLocal
 			&i.OriginalUrl,
 			&i.Title,
 			&i.MainImageUrl,
-			&i.CurrentPrice,
-			&i.Currency,
 			&i.ProductUrl,
 			&i.CollectionSource,
 			&i.LastCollectedAt,
@@ -291,8 +294,7 @@ func (q *Queries) ListAllLocalizedProducts(ctx context.Context, arg ListAllLocal
 
 const listAllProducts = `-- name: ListAllProducts :many
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
-       last_collected_at, created_at, updated_at
+       product_url, collection_source, last_collected_at, created_at, updated_at
 FROM gugu.product
 ORDER BY created_at
 `
@@ -304,8 +306,6 @@ type ListAllProductsRow struct {
 	OriginalUrl       string    `json:"original_url"`
 	Title             string    `json:"title"`
 	MainImageUrl      string    `json:"main_image_url"`
-	CurrentPrice      string    `json:"current_price"`
-	Currency          string    `json:"currency"`
 	ProductUrl        string    `json:"product_url"`
 	CollectionSource  string    `json:"collection_source"`
 	LastCollectedAt   time.Time `json:"last_collected_at"`
@@ -329,8 +329,6 @@ func (q *Queries) ListAllProducts(ctx context.Context) ([]ListAllProductsRow, er
 			&i.OriginalUrl,
 			&i.Title,
 			&i.MainImageUrl,
-			&i.CurrentPrice,
-			&i.Currency,
 			&i.ProductUrl,
 			&i.CollectionSource,
 			&i.LastCollectedAt,
@@ -356,20 +354,17 @@ SELECT
     p.market,
     p.origin_product_id AS external_product_id,
     p.original_url,
-    COALESCE(pv.title, p.title) AS title,
-    COALESCE(pv.main_image_url, p.main_image_url) AS main_image_url,
-    COALESCE(pv.current_price, '') AS current_price,
-    $3::text AS currency,
-    COALESCE(pv.product_url, p.product_url) AS product_url,
+    COALESCE(pl.title, p.title) AS title,
+    COALESCE(pl.main_image_url, p.main_image_url) AS main_image_url,
+    COALESCE(pl.product_url, p.product_url) AS product_url,
     p.collection_source,
-    COALESCE(pv.last_collected_at, p.last_collected_at) AS last_collected_at,
+    p.last_collected_at,
     p.created_at,
-    GREATEST(p.updated_at, COALESCE(pv.updated_at, p.updated_at))::timestamptz AS updated_at
+    GREATEST(p.updated_at, COALESCE(pl.updated_at, p.updated_at))::timestamptz AS updated_at
 FROM gugu.product p
-LEFT JOIN gugu.product_variant pv
-    ON pv.product_id = p.id
-   AND pv.language = $2
-   AND pv.currency = $3
+LEFT JOIN gugu.product_localization pl
+    ON pl.product_id = p.id
+   AND pl.language = $2
 WHERE p.collection_source = $1
 ORDER BY p.created_at
 `
@@ -377,7 +372,6 @@ ORDER BY p.created_at
 type ListLocalizedProductsByCollectionSourceParams struct {
 	CollectionSource string `json:"collection_source"`
 	Language         string `json:"language"`
-	Column3          string `json:"column_3"`
 }
 
 type ListLocalizedProductsByCollectionSourceRow struct {
@@ -387,8 +381,6 @@ type ListLocalizedProductsByCollectionSourceRow struct {
 	OriginalUrl       string    `json:"original_url"`
 	Title             string    `json:"title"`
 	MainImageUrl      string    `json:"main_image_url"`
-	CurrentPrice      string    `json:"current_price"`
-	Currency          string    `json:"currency"`
 	ProductUrl        string    `json:"product_url"`
 	CollectionSource  string    `json:"collection_source"`
 	LastCollectedAt   time.Time `json:"last_collected_at"`
@@ -397,7 +389,7 @@ type ListLocalizedProductsByCollectionSourceRow struct {
 }
 
 func (q *Queries) ListLocalizedProductsByCollectionSource(ctx context.Context, arg ListLocalizedProductsByCollectionSourceParams) ([]ListLocalizedProductsByCollectionSourceRow, error) {
-	rows, err := q.db.QueryContext(ctx, listLocalizedProductsByCollectionSource, arg.CollectionSource, arg.Language, arg.Column3)
+	rows, err := q.db.QueryContext(ctx, listLocalizedProductsByCollectionSource, arg.CollectionSource, arg.Language)
 	if err != nil {
 		return nil, err
 	}
@@ -412,8 +404,6 @@ func (q *Queries) ListLocalizedProductsByCollectionSource(ctx context.Context, a
 			&i.OriginalUrl,
 			&i.Title,
 			&i.MainImageUrl,
-			&i.CurrentPrice,
-			&i.Currency,
 			&i.ProductUrl,
 			&i.CollectionSource,
 			&i.LastCollectedAt,
@@ -435,7 +425,7 @@ func (q *Queries) ListLocalizedProductsByCollectionSource(ctx context.Context, a
 
 const listPriceUpdateCandidateProducts = `-- name: ListPriceUpdateCandidateProducts :many
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
+       product_url, collection_source,
        last_collected_at, created_at, updated_at
 FROM gugu.product
 WHERE ($1::text = '' OR collection_source = $1)
@@ -457,8 +447,6 @@ type ListPriceUpdateCandidateProductsRow struct {
 	OriginalUrl       string    `json:"original_url"`
 	Title             string    `json:"title"`
 	MainImageUrl      string    `json:"main_image_url"`
-	CurrentPrice      string    `json:"current_price"`
-	Currency          string    `json:"currency"`
 	ProductUrl        string    `json:"product_url"`
 	CollectionSource  string    `json:"collection_source"`
 	LastCollectedAt   time.Time `json:"last_collected_at"`
@@ -482,8 +470,6 @@ func (q *Queries) ListPriceUpdateCandidateProducts(ctx context.Context, arg List
 			&i.OriginalUrl,
 			&i.Title,
 			&i.MainImageUrl,
-			&i.CurrentPrice,
-			&i.Currency,
 			&i.ProductUrl,
 			&i.CollectionSource,
 			&i.LastCollectedAt,
@@ -505,7 +491,7 @@ func (q *Queries) ListPriceUpdateCandidateProducts(ctx context.Context, arg List
 
 const listProductsByCollectionSource = `-- name: ListProductsByCollectionSource :many
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
+       product_url, collection_source,
        last_collected_at, created_at, updated_at
 FROM gugu.product
 WHERE collection_source = $1
@@ -519,8 +505,6 @@ type ListProductsByCollectionSourceRow struct {
 	OriginalUrl       string    `json:"original_url"`
 	Title             string    `json:"title"`
 	MainImageUrl      string    `json:"main_image_url"`
-	CurrentPrice      string    `json:"current_price"`
-	Currency          string    `json:"currency"`
 	ProductUrl        string    `json:"product_url"`
 	CollectionSource  string    `json:"collection_source"`
 	LastCollectedAt   time.Time `json:"last_collected_at"`
@@ -544,8 +528,6 @@ func (q *Queries) ListProductsByCollectionSource(ctx context.Context, collection
 			&i.OriginalUrl,
 			&i.Title,
 			&i.MainImageUrl,
-			&i.CurrentPrice,
-			&i.Currency,
 			&i.ProductUrl,
 			&i.CollectionSource,
 			&i.LastCollectedAt,
@@ -567,8 +549,7 @@ func (q *Queries) ListProductsByCollectionSource(ctx context.Context, collection
 
 const listProductsByMarket = `-- name: ListProductsByMarket :many
 SELECT id, market, origin_product_id AS external_product_id, original_url, title, main_image_url,
-       '' AS current_price, '' AS currency, product_url, collection_source,
-       last_collected_at, created_at, updated_at
+       product_url, collection_source, last_collected_at, created_at, updated_at
 FROM gugu.product
 WHERE market = $1
 ORDER BY created_at
@@ -581,8 +562,6 @@ type ListProductsByMarketRow struct {
 	OriginalUrl       string    `json:"original_url"`
 	Title             string    `json:"title"`
 	MainImageUrl      string    `json:"main_image_url"`
-	CurrentPrice      string    `json:"current_price"`
-	Currency          string    `json:"currency"`
 	ProductUrl        string    `json:"product_url"`
 	CollectionSource  string    `json:"collection_source"`
 	LastCollectedAt   time.Time `json:"last_collected_at"`
@@ -606,8 +585,6 @@ func (q *Queries) ListProductsByMarket(ctx context.Context, market string) ([]Li
 			&i.OriginalUrl,
 			&i.Title,
 			&i.MainImageUrl,
-			&i.CurrentPrice,
-			&i.Currency,
 			&i.ProductUrl,
 			&i.CollectionSource,
 			&i.LastCollectedAt,
@@ -629,7 +606,7 @@ func (q *Queries) ListProductsByMarket(ctx context.Context, market string) ([]Li
 
 const listProductsWithoutSKUs = `-- name: ListProductsWithoutSKUs :many
 SELECT p.id, p.market, p.origin_product_id AS external_product_id, p.original_url, p.title,
-       p.main_image_url, '' AS current_price, '' AS currency, p.product_url,
+       p.main_image_url, p.product_url,
        p.collection_source, p.last_collected_at, p.created_at, p.updated_at
 FROM gugu.product p
 LEFT JOIN gugu.sku s ON p.id = s.product_id
@@ -644,8 +621,6 @@ type ListProductsWithoutSKUsRow struct {
 	OriginalUrl       string    `json:"original_url"`
 	Title             string    `json:"title"`
 	MainImageUrl      string    `json:"main_image_url"`
-	CurrentPrice      string    `json:"current_price"`
-	Currency          string    `json:"currency"`
 	ProductUrl        string    `json:"product_url"`
 	CollectionSource  string    `json:"collection_source"`
 	LastCollectedAt   time.Time `json:"last_collected_at"`
@@ -669,8 +644,6 @@ func (q *Queries) ListProductsWithoutSKUs(ctx context.Context) ([]ListProductsWi
 			&i.OriginalUrl,
 			&i.Title,
 			&i.MainImageUrl,
-			&i.CurrentPrice,
-			&i.Currency,
 			&i.ProductUrl,
 			&i.CollectionSource,
 			&i.LastCollectedAt,
