@@ -22,6 +22,16 @@ CREATE TABLE IF NOT EXISTS gugu.aliexpress_seller_token (
     UNIQUE (app_type)
 );
 
+CREATE TABLE IF NOT EXISTS gugu.admin_user (
+    id TEXT PRIMARY KEY,
+    login_id TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    last_login_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS gugu.app_user (
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
@@ -205,6 +215,7 @@ CREATE TABLE IF NOT EXISTS gugu.user_tracked_item_watch_sku (
 );
 
 CREATE INDEX IF NOT EXISTS idx_aliexpress_seller_token_app_type ON gugu.aliexpress_seller_token(app_type);
+CREATE INDEX IF NOT EXISTS idx_admin_user_active ON gugu.admin_user(active);
 CREATE INDEX IF NOT EXISTS idx_product_market_origin_product_id ON gugu.product(market, origin_product_id);
 CREATE INDEX IF NOT EXISTS idx_product_external_alias_product_id ON gugu.product_external_alias(product_id);
 CREATE INDEX IF NOT EXISTS idx_product_sku_product_id ON gugu.sku(product_id);

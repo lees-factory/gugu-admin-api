@@ -1,6 +1,11 @@
 package aliexpress
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	domaintoken "github.com/ljj/gugu-admin-api/internal/core/domain/token"
+)
 
 func TestParseTokenResponse_ParsesTopLevelTokenFields(t *testing.T) {
 	resp := &PlatformResponse{
@@ -32,5 +37,29 @@ func TestParseTokenResponse_ParsesTopLevelTokenFields(t *testing.T) {
 	}
 	if tokenResp.SellerID != "2457644580" {
 		t.Fatalf("seller_id = %q, want %q", tokenResp.SellerID, "2457644580")
+	}
+}
+
+func TestToDomainToken_DropshippingFallbackRefreshExpiry(t *testing.T) {
+	resp := &TokenResponse{
+		AccessToken:  "new-access",
+		RefreshToken: "new-refresh",
+		ExpiresIn:    3600,
+		// refresh_expires_in and refresh_token_valid_time are intentionally empty.
+	}
+
+	before := time.Now()
+	domain := resp.ToDomainToken(domaintoken.AppTypeDropshipping)
+	after := time.Now()
+
+	if domain.RefreshTokenExpiresAt == nil {
+		t.Fatalf("RefreshTokenExpiresAt must not be nil for dropshipping fallback")
+	}
+
+	min := before.Add(47 * time.Hour)
+	max := after.Add(49 * time.Hour)
+	if domain.RefreshTokenExpiresAt.Before(min) || domain.RefreshTokenExpiresAt.After(max) {
+		t.Fatalf("RefreshTokenExpiresAt=%s out of expected fallback range [%s, %s]",
+			domain.RefreshTokenExpiresAt.Format(time.RFC3339), min.Format(time.RFC3339), max.Format(time.RFC3339))
 	}
 }

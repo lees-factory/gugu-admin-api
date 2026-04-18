@@ -11,6 +11,8 @@ type Config struct {
 	Port                        string
 	CORSAllowedOrigins          []string
 	AdminAPIKeys                []string
+	AdminAuthTokenSecret        string
+	AdminAuthTokenTTL           time.Duration
 	DatabaseURL                 string
 	DBMaxOpenConns              int
 	DBMaxIdleConns              int
@@ -35,10 +37,14 @@ type Config struct {
 }
 
 func Load() Config {
+	adminTokenSecret := getEnvOrDefault("ADMIN_AUTH_TOKEN_SECRET", getEnvOrDefault("JWT_SECRET", ""))
+
 	return Config{
 		Port:                        getEnvOrDefault("PORT", "8700"),
 		CORSAllowedOrigins:          getEnvAsCSV("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://127.0.0.1:5173"}),
 		AdminAPIKeys:                getEnvAsCSV("ADMIN_API_KEYS", nil),
+		AdminAuthTokenSecret:        adminTokenSecret,
+		AdminAuthTokenTTL:           getEnvAsDuration("ADMIN_AUTH_TOKEN_TTL", 24*time.Hour),
 		DatabaseURL:                 getEnvOrDefault("DATABASE_URL", ""),
 		DBMaxOpenConns:              getEnvAsInt("DB_MAX_OPEN_CONNS", 10),
 		DBMaxIdleConns:              getEnvAsInt("DB_MAX_IDLE_CONNS", 5),

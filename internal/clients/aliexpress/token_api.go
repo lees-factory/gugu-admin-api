@@ -89,8 +89,13 @@ func (r *TokenResponse) ToDomainToken(appType domaintoken.AppType) domaintoken.S
 	accessExpiresAt := resolveExpireTime(r.ExpireTime, r.ExpiresIn, now)
 
 	var refreshExpiresAt *time.Time
-	if r.RefreshExpiresIn > 0 {
+	if r.RefreshTokenValidTime > 0 || r.RefreshExpiresIn > 0 {
 		t := resolveExpireTime(r.RefreshTokenValidTime, r.RefreshExpiresIn, now)
+		refreshExpiresAt = &t
+	} else if appType == domaintoken.AppTypeDropshipping && r.RefreshToken != "" {
+		// Dropshipping refresh responses may omit refresh-token TTL fields.
+		// Keep the token refreshable by applying the operational 48h window fallback.
+		t := now.Add(48 * time.Hour)
 		refreshExpiresAt = &t
 	}
 

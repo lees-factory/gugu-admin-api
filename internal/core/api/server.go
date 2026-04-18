@@ -8,20 +8,24 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/ljj/gugu-admin-api/internal/clients/aliexpress"
+	adminauthctrl "github.com/ljj/gugu-admin-api/internal/core/api/controller/v1/adminauth"
 	batchctrl "github.com/ljj/gugu-admin-api/internal/core/api/controller/v1/batch"
 	productctrl "github.com/ljj/gugu-admin-api/internal/core/api/controller/v1/product"
 	tokenctrl "github.com/ljj/gugu-admin-api/internal/core/api/controller/v1/token"
 	userctrl "github.com/ljj/gugu-admin-api/internal/core/api/controller/v1/user"
 	"github.com/ljj/gugu-admin-api/internal/core/api/middleware"
+	domainadminauth "github.com/ljj/gugu-admin-api/internal/core/domain/adminauth"
 	domainproduct "github.com/ljj/gugu-admin-api/internal/core/domain/product"
 	domaintoken "github.com/ljj/gugu-admin-api/internal/core/domain/token"
 	domainuser "github.com/ljj/gugu-admin-api/internal/core/domain/user"
 	"github.com/ljj/gugu-admin-api/internal/provider/batch"
+	dbcoreadminauth "github.com/ljj/gugu-admin-api/internal/storage/dbcore/adminauth"
 	dbcorepricehistory "github.com/ljj/gugu-admin-api/internal/storage/dbcore/pricehistory"
 	dbcoreproduct "github.com/ljj/gugu-admin-api/internal/storage/dbcore/product"
 	dbcoreproductalias "github.com/ljj/gugu-admin-api/internal/storage/dbcore/productalias"
 	dbcoretoken "github.com/ljj/gugu-admin-api/internal/storage/dbcore/token"
 	dbcoreuser "github.com/ljj/gugu-admin-api/internal/storage/dbcore/user"
+	supportadminauth "github.com/ljj/gugu-admin-api/internal/support/adminauth"
 	"github.com/ljj/gugu-admin-api/internal/support/clock"
 	"github.com/ljj/gugu-admin-api/internal/support/config"
 	"github.com/ljj/gugu-admin-api/internal/support/id"
@@ -45,21 +49,28 @@ func NewServer(cfg config.Config, db *sql.DB) *gin.Engine {
 		c.File(path)
 	})
 
+	adminTokenIssuer := supportadminauth.NewHMACTokenIssuer(cfg.AdminAuthTokenSecret, cfg.AdminAuthTokenTTL)
 	v1 := r.Group("/v1")
-	v1.Use(middleware.AdminAuth(cfg.AdminAPIKeys))
+	v1.Use(middleware.AdminAuth(cfg.AdminAPIKeys, adminTokenIssuer))
 	{
-		registerRoutes(v1, cfg, db)
+		registerRoutes(v1, cfg, db, adminTokenIssuer)
 	}
 
 	return r
 }
 
-func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
+func registerRoutes(
+	rg *gin.RouterGroup,
+	cfg config.Config,
+	db *sql.DB,
+	adminTokenIssuer domainadminauth.AccessTokenIssuer,
+) {
 	// Infra
 	productRepo := dbcoreproduct.NewSQLCRepository(db)
 	skuRepo := dbcoreproduct.NewSKUSQLCRepository(db)
 	userRepo := dbcoreuser.NewSQLCRepository(db)
 	tokenRepo := dbcoretoken.NewSQLCRepository(db)
+	adminUserRepo := dbcoreadminauth.NewSQLRepository(db)
 	priceHistoryRepo := dbcorepricehistory.NewRepository(db)
 	productAliasRepo := dbcoreproductalias.NewSQLRepository(db)
 	idGen := id.NewGenerator()
@@ -71,6 +82,15 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 	productService := domainproduct.NewService(productFinder, productWriter, skuRepo, idGen, clk)
 	userFinder := domainuser.NewFinder(userRepo)
 	userService := domainuser.NewService(userFinder)
+	adminAuthFinder := domainadminauth.NewFinder(adminUserRepo)
+	adminAuthWriter := domainadminauth.NewWriter(adminUserRepo)
+	adminAuthService := domainadminauth.NewService(
+		adminAuthFinder,
+		adminAuthWriter,
+		supportadminauth.NewPasswordVerifier(),
+		adminTokenIssuer,
+		clk,
+	)
 	tokenService := domaintoken.NewService(tokenRepo, idGen, clk)
 
 	// Clients
@@ -141,6 +161,8 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 	productController.RegisterRoutes(rg)
 	tokenController := tokenctrl.NewController(tokenService, affiliatePlatformClient, dropshippingPlatformClient)
 	tokenController.RegisterRoutes(rg)
+	adminAuthController := adminauthctrl.NewController(adminAuthService)
+	adminAuthController.RegisterRoutes(rg)
 	userController := userctrl.NewController(userService)
 	userController.RegisterRoutes(rg)
 }
