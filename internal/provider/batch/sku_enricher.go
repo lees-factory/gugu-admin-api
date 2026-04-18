@@ -115,7 +115,7 @@ func (e *SKUEnricher) enrichSingleFromDropshipping(ctx context.Context, p domain
 
 	totalUpserted := 0
 
-	currency := normalizeRepresentativeCurrency(p.Currency)
+	currency := normalizeRepresentativeCurrency("")
 	lang := enum.LanguageForCurrency(currency)
 
 	var detail *aliexpress.DropshippingProductDetail
@@ -148,9 +148,6 @@ func (e *SKUEnricher) enrichSingleFromDropshipping(ctx context.Context, p domain
 			SKUName:       strings.TrimSpace(sku.SKUName),
 			Color:         strings.TrimSpace(sku.Color),
 			Size:          strings.TrimSpace(sku.Size),
-			Price:         firstNonEmpty(strings.TrimSpace(sku.OfferSalePrice), strings.TrimSpace(sku.Price)),
-			OriginalPrice: strings.TrimSpace(sku.Price),
-			Currency:      firstNonEmpty(strings.TrimSpace(sku.CurrencyCode), strings.TrimSpace(detail.CurrencyCode)),
 			ImageURL:      strings.TrimSpace(sku.ImageURL),
 			SKUProperties: strings.TrimSpace(sku.SKUAttr),
 		}

@@ -3,9 +3,9 @@ package batch
 import (
 	"context"
 	"log"
+	"slices"
 	"time"
 
-	domainproduct "github.com/ljj/gugu-admin-api/internal/core/domain/product"
 	"github.com/ljj/gugu-admin-api/internal/core/enum"
 )
 
@@ -68,29 +68,41 @@ func (s *HotProductScheduler) runOnce(ctx context.Context) {
 		return
 	}
 
-	currencies := []string{enum.SupportedCurrencies[0], enum.SupportedCurrencies[1]}
-	for i, currency := range currencies {
-		if err := s.runSnapshotForCurrency(ctx, currency); err != nil {
-			log.Printf("hot product scheduler snapshot currency=%s failed: %v", currency, err)
+	phaseJobs := []struct {
+		currency    string
+		targetGroup TargetGroup
+	}{
+		{currency: "KRW", targetGroup: TargetGroupAll},
+		{currency: "USD", targetGroup: TargetGroupHotProducts},
+		{currency: "USD", targetGroup: TargetGroupTracked},
+	}
+
+	for i, job := range phaseJobs {
+		if !slices.Contains(enum.SupportedCurrencies, job.currency) {
+			continue
 		}
-		if i < len(currencies)-1 {
+		if err := s.runSnapshotForCurrencyAndGroup(ctx, job.currency, job.targetGroup); err != nil {
+			log.Printf("hot product scheduler snapshot currency=%s target_group=%s failed: %v", job.currency, job.targetGroup, err)
+		}
+		if i < len(phaseJobs)-1 {
 			s.waitStagger(ctx)
 		}
 	}
 }
 
-func (s *HotProductScheduler) runSnapshotForCurrency(ctx context.Context, currency string) error {
+func (s *HotProductScheduler) runSnapshotForCurrencyAndGroup(ctx context.Context, currency string, targetGroup TargetGroup) error {
 	req := PriceUpdateRequest{
 		TriggerType: TriggerTypeScheduled,
 		RequestedBy: "internal-scheduler",
 		Filter: PriceUpdateFilter{
-			CollectionSource: domainproduct.CollectionSourceHotProductQuery,
-			Currencies:       []string{currency},
+			Currencies:  []string{currency},
+			TargetGroup: targetGroup,
 		},
 		Metadata: map[string]string{
-			"runner":   "internal-scheduler",
-			"pipeline": "hot-product-scheduler",
-			"currency": currency,
+			"runner":       "internal-scheduler",
+			"pipeline":     "hot-product-scheduler",
+			"currency":     currency,
+			"target_group": string(targetGroup),
 		},
 	}
 
@@ -98,14 +110,18 @@ func (s *HotProductScheduler) runSnapshotForCurrency(ctx context.Context, curren
 	if err != nil {
 		return err
 	}
-	log.Printf("hot product scheduler snapshot triggered: currency=%s total=%d", currency, status.TotalCount)
+	log.Printf("hot product scheduler snapshot triggered: currency=%s target_group=%s total=%d",
+		currency, targetGroup, status.TotalCount)
 
 	resultStatus, err := s.snapshotter.Run(ctx, req)
 	if err != nil {
 		return err
 	}
-	log.Printf("hot product scheduler snapshot completed: currency=%s total=%d success=%d fail=%d skipped=%d",
-		currency, resultStatus.TotalCount, resultStatus.SuccessCount, resultStatus.FailCount, resultStatus.SkippedCount)
+	log.Printf("hot product scheduler snapshot completed: currency=%s target_group=%s total=%d success=%d fail=%d skipped=%d",
+		currency, targetGroup, resultStatus.TotalCount, resultStatus.SuccessCount, resultStatus.FailCount, resultStatus.SkippedCount)
+	if currency == "USD" && targetGroup == TargetGroupTracked {
+		log.Printf("hot product scheduler phase1 sequence done: KRW(ALL) -> USD(HOT_PRODUCTS) -> USD(TRACKED)")
+	}
 	return nil
 }
 

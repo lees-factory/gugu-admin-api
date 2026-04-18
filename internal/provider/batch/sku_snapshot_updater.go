@@ -14,10 +14,6 @@ import (
 	"github.com/ljj/gugu-admin-api/internal/core/enum"
 )
 
-const (
-	JobTypeSKUSnapshotUpdate JobType = "SKU_SNAPSHOT_UPDATE"
-)
-
 type SKUSnapshotUpdater struct {
 	productService   *domainproduct.Service
 	statusStore      *BatchStatusStore
@@ -194,6 +190,25 @@ func (u *SKUSnapshotUpdater) resolveTargets(ctx context.Context, filter PriceUpd
 		return filterProducts(products, filter), nil
 	}
 
+	switch normalizeTargetGroup(filter.TargetGroup) {
+	case TargetGroupHotProducts:
+		products, err := u.productService.ListByCollectionSource(ctx, domainproduct.CollectionSourceHotProductQuery)
+		if err != nil {
+			return nil, fmt.Errorf("list hot products: %w", err)
+		}
+		return filterProducts(products, filter), nil
+	case TargetGroupTracked:
+		productIDs, err := u.productService.ListActiveTrackedProductIDs(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list active tracked product ids: %w", err)
+		}
+		products, err := u.productService.FindByIDs(ctx, productIDs)
+		if err != nil {
+			return nil, fmt.Errorf("find tracked products by ids: %w", err)
+		}
+		return filterProducts(products, filter), nil
+	}
+
 	products, err := u.productService.ListPriceUpdateCandidates(ctx, domainproduct.PriceUpdateCandidateFilter{
 		CollectionSource: filter.CollectionSource,
 		Market:           filter.Market,
@@ -296,6 +311,17 @@ func normalizeSKUSnapshotUpdateRequest(req PriceUpdateRequest) PriceUpdateReques
 	req.JobType = JobTypeSKUSnapshotUpdate
 	req.Filter.CollectionSource = strings.TrimSpace(req.Filter.CollectionSource)
 	return req
+}
+
+func IsValidTargetGroup(group string) bool {
+	switch strings.ToUpper(strings.TrimSpace(group)) {
+	case "":
+		return true
+	case string(TargetGroupAll), string(TargetGroupHotProducts), string(TargetGroupTracked):
+		return true
+	default:
+		return false
+	}
 }
 
 func (u *SKUSnapshotUpdater) randomDelay() {

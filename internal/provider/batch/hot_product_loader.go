@@ -6,13 +6,10 @@ import (
 	"log"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/ljj/gugu-admin-api/internal/clients/aliexpress"
 	domainproduct "github.com/ljj/gugu-admin-api/internal/core/domain/product"
 	"github.com/ljj/gugu-admin-api/internal/core/enum"
-	"github.com/ljj/gugu-admin-api/internal/storage/dbcore/hotproduct"
-	"github.com/ljj/gugu-admin-api/internal/support/id"
 )
 
 type HotProductLoadInput struct {
@@ -34,11 +31,7 @@ type HotProductLoadResult struct {
 type HotProductLoader struct {
 	client         aliexpress.Client
 	productService *domainproduct.Service
-	hotProductRepo *hotproduct.SQLCRepository
-	priceRecorder  PriceHistoryRecorder
-	variantWriter  ProductVariantWriter
 	aliasRepo      ProductAliasRepository
-	idGen          *id.Generator
 }
 
 var (
@@ -54,20 +47,12 @@ type ProductAliasRepository interface {
 func NewHotProductLoader(
 	client aliexpress.Client,
 	productService *domainproduct.Service,
-	hotProductRepo *hotproduct.SQLCRepository,
-	priceRecorder PriceHistoryRecorder,
-	variantWriter ProductVariantWriter,
 	aliasRepo ProductAliasRepository,
-	idGen *id.Generator,
 ) *HotProductLoader {
 	return &HotProductLoader{
 		client:         client,
 		productService: productService,
-		hotProductRepo: hotProductRepo,
-		priceRecorder:  priceRecorder,
-		variantWriter:  variantWriter,
 		aliasRepo:      aliasRepo,
-		idGen:          idGen,
 	}
 }
 
@@ -78,53 +63,50 @@ const (
 )
 
 func (l *HotProductLoader) LoadHotProducts(ctx context.Context, input HotProductLoadInput) (*HotProductLoadResult, error) {
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	result := &HotProductLoadResult{}
-	for _, currency := range enum.SupportedCurrencies {
-		lang := enum.LanguageForCurrency(currency)
+	currency := enum.SupportedCurrencies[0]
+	lang := enum.LanguageForCurrency(currency)
 
-		for pageOffset := 0; pageOffset < hotProductMaxPages; pageOffset++ {
-			pageNo := 1 + pageOffset
-			items, err := l.client.QueryHotProducts(ctx, aliexpress.HotProductQueryRequest{
-				CategoryIDs:    input.CategoryIDs,
-				Keywords:       strings.TrimSpace(input.Keywords),
-				PageNo:         pageNo,
-				PageSize:       hotProductPageSize,
-				Sort:           strings.TrimSpace(input.Sort),
-				MinSalePrice:   strings.TrimSpace(input.MinSalePrice),
-				MaxSalePrice:   strings.TrimSpace(input.MaxSalePrice),
-				ShipToCountry:  hotProductShipToCountry,
-				TargetCurrency: currency,
-				TargetLanguage: lang,
-			})
+	for pageOffset := 0; pageOffset < hotProductMaxPages; pageOffset++ {
+		pageNo := 1 + pageOffset
+		items, err := l.client.QueryHotProducts(ctx, aliexpress.HotProductQueryRequest{
+			CategoryIDs:    input.CategoryIDs,
+			Keywords:       strings.TrimSpace(input.Keywords),
+			PageNo:         pageNo,
+			PageSize:       hotProductPageSize,
+			Sort:           strings.TrimSpace(input.Sort),
+			MinSalePrice:   strings.TrimSpace(input.MinSalePrice),
+			MaxSalePrice:   strings.TrimSpace(input.MaxSalePrice),
+			ShipToCountry:  hotProductShipToCountry,
+			TargetCurrency: currency,
+			TargetLanguage: lang,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("query hot products currency %s page %d: %w", currency, pageNo, err)
+		}
+		if len(items) == 0 {
+			break
+		}
+
+		result.ProcessedPages++
+		result.RequestedCount += len(items)
+
+		for _, item := range items {
+			productSaved, skipped, err := l.processHotProductItem(ctx, item)
 			if err != nil {
-				return nil, fmt.Errorf("query hot products currency %s page %d: %w", currency, pageNo, err)
+				return nil, err
 			}
-			if len(items) == 0 {
-				break
+			result.HotProductSaved++
+			if productSaved {
+				result.ProductSavedCount++
 			}
+			if skipped {
+				result.SkippedCount++
+			}
+		}
 
-			result.ProcessedPages++
-			result.RequestedCount += len(items)
-
-			for _, item := range items {
-				productSaved, skipped, err := l.processHotProductItem(ctx, item, currency, now, today)
-				if err != nil {
-					return nil, err
-				}
-				result.HotProductSaved++
-				if productSaved {
-					result.ProductSavedCount++
-				}
-				if skipped {
-					result.SkippedCount++
-				}
-			}
-
-			if len(items) < hotProductPageSize {
-				break
-			}
+		if len(items) < hotProductPageSize {
+			break
 		}
 	}
 
@@ -134,16 +116,11 @@ func (l *HotProductLoader) LoadHotProducts(ctx context.Context, input HotProduct
 func (l *HotProductLoader) processHotProductItem(
 	ctx context.Context,
 	item aliexpress.HotProduct,
-	requestedCurrency string,
-	now time.Time,
-	today time.Time,
 ) (bool, bool, error) {
 	viewExternalProductID := strings.TrimSpace(item.ProductID)
 	title := strings.TrimSpace(item.ProductTitle)
 	imageURL := strings.TrimSpace(item.ProductMainImageURL)
 	productURL := strings.TrimSpace(item.ProductDetailURL)
-	price := firstNonEmpty(item.TargetSalePrice, item.SalePrice)
-	currency := firstNonEmpty(item.TargetSalePriceCurrency, item.SalePriceCurrency, requestedCurrency)
 	originProductID := resolveOriginProductID(viewExternalProductID, productURL)
 	lookupProductID := firstNonEmpty(originProductID, viewExternalProductID)
 
@@ -158,93 +135,30 @@ func (l *HotProductLoader) processHotProductItem(
 		}
 	}
 
-	var productID string
-	productSaved := false
-	skipped := false
-
-	if existing == nil && currency == enum.SupportedCurrencies[0] {
+	if existing == nil {
 		created, err := l.productService.Create(ctx, domainproduct.NewProduct{
 			Market:            enum.MarketAliExpress,
 			ExternalProductID: lookupProductID,
 			OriginalURL:       productURL,
 			Title:             title,
 			MainImageURL:      imageURL,
-			CurrentPrice:      price,
-			Currency:          currency,
 			ProductURL:        productURL,
 			CollectionSource:  domainproduct.CollectionSourceHotProductQuery,
 		})
 		if err != nil {
 			return false, false, fmt.Errorf("save product %s: %w", lookupProductID, err)
 		}
-		productID = created.ID
-		productSaved = true
-	} else {
-		if existing != nil {
-			productID = existing.ID
-			if currency == enum.SupportedCurrencies[0] {
-				skipped = true
-			}
+		if err := l.upsertViewAlias(ctx, enum.MarketAliExpress, viewExternalProductID, created.ID); err != nil {
+			log.Printf("upsert product alias %s failed: %v", viewExternalProductID, err)
 		}
-		if existing == nil {
-			return false, false, nil
-		}
+		return true, false, nil
 	}
 
-	if err := l.recordProductPrice(ctx, productID, price, currency, now, today); err != nil {
-		log.Printf("record hot product price %s currency=%s failed: %v", lookupProductID, currency, err)
-	}
-	if err := l.upsertProductVariant(ctx, productID, title, imageURL, productURL, price, currency, now); err != nil {
-		log.Printf("upsert product variant %s currency=%s failed: %v", lookupProductID, currency, err)
-	}
-	if err := l.upsertViewAlias(ctx, enum.MarketAliExpress, viewExternalProductID, productID); err != nil {
+	if err := l.upsertViewAlias(ctx, enum.MarketAliExpress, viewExternalProductID, existing.ID); err != nil {
 		log.Printf("upsert product alias %s failed: %v", viewExternalProductID, err)
 	}
 
-	return productSaved, skipped, nil
-}
-
-func (l *HotProductLoader) recordProductPrice(ctx context.Context, productID, price, currency string, now, today time.Time) error {
-	if l.priceRecorder == nil || productID == "" || price == "" || currency == "" {
-		return nil
-	}
-
-	changeValue := ""
-	lastPrice, _ := l.priceRecorder.GetLatestProductPrice(ctx, productID, currency)
-	shouldInsertHistory := lastPrice == ""
-	if lastPrice != "" && lastPrice != price {
-		shouldInsertHistory = true
-		changeValue = calcChange(lastPrice, price)
-	}
-
-	if shouldInsertHistory {
-		if err := l.priceRecorder.InsertProductPrice(ctx, productID, now, price, currency, changeValue); err != nil {
-			return err
-		}
-	}
-	if err := l.priceRecorder.UpsertProductSnapshot(ctx, productID, today, price, currency); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (l *HotProductLoader) upsertProductVariant(ctx context.Context, productID, title, imageURL, productURL, price, currency string, collectedAt time.Time) error {
-	if l.variantWriter == nil || productID == "" || currency == "" {
-		return nil
-	}
-
-	return l.variantWriter.UpsertProductVariant(
-		ctx,
-		productID,
-		enum.LanguageForCurrency(currency),
-		currency,
-		title,
-		imageURL,
-		productURL,
-		price,
-		collectedAt,
-	)
+	return false, true, nil
 }
 
 func (l *HotProductLoader) findExistingByExternalOrAlias(ctx context.Context, market enum.Market, externalProductID string) (*domainproduct.Product, error) {
