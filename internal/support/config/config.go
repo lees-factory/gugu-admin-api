@@ -20,8 +20,6 @@ type Config struct {
 	AliExpressAppSecret         string
 	AliExpressDSAppKey          string
 	AliExpressDSAppSecret       string
-	PriceUpdateScheduleEnabled  bool
-	PriceUpdateScheduleInterval time.Duration
 	SKUEnrichMinDelay           time.Duration
 	SKUEnrichMaxDelay           time.Duration
 	SKUSnapshotMinDelay         time.Duration
@@ -50,8 +48,6 @@ func Load() Config {
 		AliExpressAppSecret:         getEnvOrDefault("ALIEXPRESS_APP_SECRET", ""),
 		AliExpressDSAppKey:          getEnvOrDefault("ALIEXPRESS_DS_APP_KEY", ""),
 		AliExpressDSAppSecret:       getEnvOrDefault("ALIEXPRESS_DS_APP_SECRET", ""),
-		PriceUpdateScheduleEnabled:  getEnvAsBool("PRICE_UPDATE_SCHEDULE_ENABLED", false),
-		PriceUpdateScheduleInterval: getEnvAsDuration("PRICE_UPDATE_SCHEDULE_INTERVAL", 24*time.Hour),
 		SKUEnrichMinDelay:           getEnvAsDuration("SKU_ENRICH_MIN_DELAY", 4*time.Second),
 		SKUEnrichMaxDelay:           getEnvAsDuration("SKU_ENRICH_MAX_DELAY", 7*time.Second),
 		SKUSnapshotMinDelay:         getEnvAsDuration("SKU_SNAPSHOT_MIN_DELAY", 3*time.Second),
