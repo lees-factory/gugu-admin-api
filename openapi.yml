@@ -19,6 +19,8 @@ tags:
     description: 어드민 상품 조회 엔드포인트
   - name: user
     description: 어드민 사용자/세션 관리 엔드포인트
+  - name: admin-auth
+    description: 어드민 로그인 및 액세스 토큰 발급
   - name: token
     description: AliExpress OAuth 토큰 관리
 paths:
@@ -42,12 +44,82 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /v1/admin/auth/login:
+    post:
+      tags:
+        - admin-auth
+      security: []
+      summary: 관리자 로그인
+      description: |
+        `admin_user.login_id/password`로 로그인하고 관리자 액세스 토큰(Bearer)을 발급합니다.
+        회원가입 API는 제공하지 않으며, 계정은 운영자가 DB에 수동으로 생성합니다.
+      operationId: adminLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLoginRequest'
+      responses:
+        '200':
+          description: 로그인 성공
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Pragma:
+              $ref: '#/components/headers/Pragma'
+            Expires:
+              $ref: '#/components/headers/Expires'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLoginResponse'
+        '400':
+          description: 요청 본문 누락/형식 오류
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Pragma:
+              $ref: '#/components/headers/Pragma'
+            Expires:
+              $ref: '#/components/headers/Expires'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 인증 실패(id/password 불일치)
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Pragma:
+              $ref: '#/components/headers/Pragma'
+            Expires:
+              $ref: '#/components/headers/Expires'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 로그인 처리 실패
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Pragma:
+              $ref: '#/components/headers/Pragma'
+            Expires:
+              $ref: '#/components/headers/Expires'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/batch/load-hot-products:
     post:
       tags:
         - batch
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: 인기 상품 적재
       description: |
         AliExpress 인기 상품 메타데이터를 대표 통화(KRW) 기준으로 조회해 `product`/`product_external_alias`에 동기화합니다.
@@ -88,7 +160,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           headers:
             Cache-Control:
               $ref: '#/components/headers/Cache-Control'
@@ -106,6 +178,7 @@ paths:
         - batch
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: 인기 상품 SKU 보강
       description: SKU가 없는 인기 상품에 대해 Dropshipping API로 SKU를 적재합니다.
       operationId: enrichHotProducts
@@ -124,7 +197,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AcceptedMessageResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           headers:
             Cache-Control:
               $ref: '#/components/headers/Cache-Control'
@@ -142,6 +215,7 @@ paths:
         - batch
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: 전체 상품 SKU 보강
       description: 모든 상품에 대해 Dropshipping API로 SKU를 적재합니다.
       operationId: enrichAllProducts
@@ -160,7 +234,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AcceptedMessageResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           headers:
             Cache-Control:
               $ref: '#/components/headers/Cache-Control'
@@ -178,6 +252,7 @@ paths:
         - batch
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       deprecated: true
       summary: (Deprecated) 상품 가격 갱신 배치
       description: |
@@ -204,7 +279,7 @@ paths:
                   code: DEPRECATED_ENDPOINT
                   message: update-product-prices is deprecated; use /v1/batch/update-sku-snapshots
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           headers:
             Cache-Control:
               $ref: '#/components/headers/Cache-Control'
@@ -222,6 +297,7 @@ paths:
         - batch
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: SKU snapshot 갱신 배치
       description: |
         대상 상품들의 SKU 가격을 AliExpress Dropshipping API에서 다시 조회하여 `sku_price_snapshot`을 갱신합니다.
@@ -305,7 +381,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           headers:
             Cache-Control:
               $ref: '#/components/headers/Cache-Control'
@@ -336,6 +412,7 @@ paths:
         - product
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: 상품 목록 조회
       description: |
         `product`/`product_localization` 기준 메타 정보를 반환합니다.
@@ -374,7 +451,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProductListResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           headers:
             Cache-Control:
               $ref: '#/components/headers/Cache-Control'
@@ -405,6 +482,7 @@ paths:
         - batch
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: 배치 상태 조회
       description: |
         최근 실행된 배치 작업 상태를 반환합니다.
@@ -447,7 +525,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           headers:
             Cache-Control:
               $ref: '#/components/headers/Cache-Control'
@@ -465,6 +543,7 @@ paths:
         - token
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: OAuth 코드로 토큰 발급
       description: |
         AliExpress 셀러 인증 콜백에서 받은 OAuth 코드를 access/refresh 토큰으로 교환합니다.
@@ -515,7 +594,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           headers:
             Cache-Control:
               $ref: '#/components/headers/Cache-Control'
@@ -546,6 +625,7 @@ paths:
         - token
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: OAuth 인가 URL 생성
       description: |
         지정한 app_type에 대해 AliExpress seller authorization URL을 생성합니다.
@@ -588,7 +668,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           headers:
             Cache-Control:
               $ref: '#/components/headers/Cache-Control'
@@ -688,6 +768,7 @@ paths:
         - token
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: 토큰 수동 갱신
       description: |
         저장된 refresh_token을 사용하여 access_token을 갱신합니다.
@@ -749,7 +830,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           headers:
             Cache-Control:
               $ref: '#/components/headers/Cache-Control'
@@ -780,6 +861,7 @@ paths:
         - token
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: 토큰 상태 조회
       description: |
         저장된 토큰의 현재 상태를 반환합니다.
@@ -822,7 +904,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           headers:
             Cache-Control:
               $ref: '#/components/headers/Cache-Control'
@@ -840,6 +922,7 @@ paths:
         - user
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: 사용자 목록 조회
       operationId: listUsers
       parameters:
@@ -903,7 +986,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           headers:
             Cache-Control:
               $ref: '#/components/headers/Cache-Control'
@@ -921,6 +1004,7 @@ paths:
         - user
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: 사용자 세션 목록 조회
       operationId: listUserSessions
       parameters:
@@ -961,7 +1045,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           content:
             application/json:
               schema:
@@ -978,6 +1062,7 @@ paths:
         - user
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: 사용자 전체 세션 강제 로그아웃
       operationId: revokeAllUserSessions
       parameters:
@@ -1000,7 +1085,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           content:
             application/json:
               schema:
@@ -1017,6 +1102,7 @@ paths:
         - user
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: 특정 세션 강제 로그아웃
       operationId: revokeUserSessionByID
       parameters:
@@ -1044,7 +1130,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           content:
             application/json:
               schema:
@@ -1067,6 +1153,7 @@ paths:
         - user
       security:
         - AdminApiKey: []
+        - AdminBearer: []
       summary: 토큰 패밀리 단위 세션 강제 로그아웃
       operationId: revokeUserSessionsByTokenFamily
       parameters:
@@ -1094,7 +1181,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 관리자 인증 헤더 누락
+          description: 관리자 인증 정보 누락 또는 오류
           content:
             application/json:
               schema:
@@ -1130,6 +1217,13 @@ components:
       description: |
         모든 `/v1` 어드민 API 호출 시 필요한 헤더.
         `ADMIN_API_KEYS`가 설정되면 해당 값 중 하나와 일치해야 하며, 비어 있으면 하위호환을 위해 non-empty 값만 확인합니다.
+    AdminBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        `POST /v1/admin/auth/login`으로 발급한 관리자 액세스 토큰.
+        `Authorization: Bearer <token>` 형식으로 전송합니다.
   schemas:
     HealthResponse:
       type: object
@@ -1184,6 +1278,51 @@ components:
               properties:
                 message:
                   type: string
+    AdminLoginRequest:
+      type: object
+      required:
+        - id
+        - password
+      properties:
+        id:
+          type: string
+          description: 관리자 로그인 ID (`admin_user.login_id`)
+          example: super-admin
+        password:
+          type: string
+          format: password
+          description: 관리자 로그인 비밀번호
+          example: my-admin-password
+    AdminLoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/APIResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - admin_id
+                - login_id
+                - access_token
+                - token_type
+                - expires_at
+              properties:
+                admin_id:
+                  type: string
+                  description: 로그인한 관리자 내부 PK (`admin_user.id`)
+                login_id:
+                  type: string
+                  description: 로그인에 사용한 관리자 ID (`admin_user.login_id`)
+                access_token:
+                  type: string
+                  description: 관리자 Bearer 액세스 토큰
+                token_type:
+                  type: string
+                  enum:
+                    - Bearer
+                expires_at:
+                  type: string
+                  format: date-time
     PriceUpdateRequest:
       type: object
       description: |
