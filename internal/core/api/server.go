@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/ljj/gugu-admin-api/internal/clients/aliexpress"
@@ -21,7 +20,6 @@ import (
 	dbcorepricehistory "github.com/ljj/gugu-admin-api/internal/storage/dbcore/pricehistory"
 	dbcoreproduct "github.com/ljj/gugu-admin-api/internal/storage/dbcore/product"
 	dbcoreproductalias "github.com/ljj/gugu-admin-api/internal/storage/dbcore/productalias"
-	dbcoreproductvariant "github.com/ljj/gugu-admin-api/internal/storage/dbcore/productvariant"
 	dbcoretoken "github.com/ljj/gugu-admin-api/internal/storage/dbcore/token"
 	dbcoreuser "github.com/ljj/gugu-admin-api/internal/storage/dbcore/user"
 	"github.com/ljj/gugu-admin-api/internal/support/clock"
@@ -64,7 +62,6 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 	tokenRepo := dbcoretoken.NewSQLCRepository(db)
 	priceHistoryRepo := dbcorepricehistory.NewRepository(db)
 	productAliasRepo := dbcoreproductalias.NewSQLRepository(db)
-	productVariantRepo := dbcoreproductvariant.NewSQLCRepository(db)
 	idGen := id.NewGenerator()
 	clk := clock.New()
 
@@ -100,14 +97,6 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 		cfg.SKUEnrichMinDelay,
 		cfg.SKUEnrichMaxDelay,
 	)
-	priceSource := batch.NewAliExpressPriceSource(aliexpressClient, 500*time.Millisecond)
-	priceUpdater := batch.NewPriceUpdater(
-		productService,
-		batchStatusStore,
-		priceSource,
-		priceHistoryRepo,
-		productVariantRepo,
-	)
 	skuSnapshotUpdater := batch.NewSKUSnapshotUpdater(
 		productService,
 		batchStatusStore,
@@ -116,14 +105,7 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 		cfg.SKUSnapshotMinDelay,
 		cfg.SKUSnapshotMaxDelay,
 	)
-	hotProductLoader := batch.NewHotProductLoader(aliexpressClient, productService, nil, priceHistoryRepo, productVariantRepo, productAliasRepo, idGen)
-	if cfg.PriceUpdateScheduleEnabled {
-		priceUpdateScheduler := batch.NewPriceUpdateScheduler(
-			priceUpdater,
-			cfg.PriceUpdateScheduleInterval,
-		)
-		priceUpdateScheduler.Start(context.Background())
-	}
+	hotProductLoader := batch.NewHotProductLoader(aliexpressClient, productService, productAliasRepo)
 	if cfg.TokenRefreshEnabled {
 		tokenRefreshScheduler := batch.NewTokenRefreshScheduler(
 			tokenService,
@@ -153,7 +135,7 @@ func registerRoutes(rg *gin.RouterGroup, cfg config.Config, db *sql.DB) {
 	}
 
 	// Controllers
-	batchController := batchctrl.NewController(skuEnricher, priceUpdater, skuSnapshotUpdater, hotProductLoader)
+	batchController := batchctrl.NewController(skuEnricher, skuSnapshotUpdater, hotProductLoader)
 	batchController.RegisterRoutes(rg)
 	productController := productctrl.NewController(productService)
 	productController.RegisterRoutes(rg)

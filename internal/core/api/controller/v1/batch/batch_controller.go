@@ -19,7 +19,6 @@ import (
 
 type Controller struct {
 	skuEnricher        *batch.SKUEnricher
-	priceUpdater       *batch.PriceUpdater
 	skuSnapshotUpdater *batch.SKUSnapshotUpdater
 	hotProductLoader   *batch.HotProductLoader
 }
@@ -29,6 +28,7 @@ type updatePricesRequest struct {
 	Market           enum.Market `json:"market"`
 	ProductIDs       []string    `json:"product_ids"`
 	Currencies       []string    `json:"currencies"`
+	TargetGroup      string      `json:"target_group"`
 	CollectedBefore  *time.Time  `json:"collected_before"`
 	Force            bool        `json:"force"`
 	RequestedBy      string      `json:"requested_by"`
@@ -44,13 +44,11 @@ type loadHotProductsRequest struct {
 
 func NewController(
 	skuEnricher *batch.SKUEnricher,
-	priceUpdater *batch.PriceUpdater,
 	skuSnapshotUpdater *batch.SKUSnapshotUpdater,
 	hotProductLoader *batch.HotProductLoader,
 ) *Controller {
 	return &Controller{
 		skuEnricher:        skuEnricher,
-		priceUpdater:       priceUpdater,
 		skuSnapshotUpdater: skuSnapshotUpdater,
 		hotProductLoader:   hotProductLoader,
 	}
@@ -129,48 +127,7 @@ func (ctrl *Controller) EnrichAll(c *gin.Context) {
 }
 
 func (ctrl *Controller) UpdateProductPrices(c *gin.Context) {
-	req, err := decodeUpdatePricesRequest(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_REQUEST", err.Error()))
-		return
-	}
-	if req.Market != "" && !req.Market.IsSupported() {
-		c.JSON(http.StatusBadRequest, response.ErrorFromCode("INVALID_MARKET", "unsupported market"))
-		return
-	}
-
-	batchReq := batch.PriceUpdateRequest{
-		TriggerType: batch.TriggerTypeManual,
-		RequestedBy: req.RequestedBy,
-		Filter: batch.PriceUpdateFilter{
-			CollectionSource: req.CollectionSource,
-			Market:           req.Market,
-			ProductIDs:       req.ProductIDs,
-			Currencies:       req.Currencies,
-			CollectedBefore:  req.CollectedBefore,
-			Force:            req.Force,
-		},
-	}
-
-	status, err := ctrl.priceUpdater.Preview(c.Request.Context(), batchReq)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.ErrorFromCode("BATCH_PREVIEW_FAILED", err.Error()))
-		return
-	}
-
-	go func(request batch.PriceUpdateRequest) {
-		result, runErr := ctrl.priceUpdater.Run(context.Background(), request)
-		if runErr != nil {
-			log.Printf("price update batch failed: %v", runErr)
-			return
-		}
-		log.Printf("price update batch completed: %+v", result)
-	}(batchReq)
-
-	c.JSON(http.StatusAccepted, response.SuccessWithData(gin.H{
-		"message": "price update batch started",
-		"job":     status,
-	}))
+	c.JSON(http.StatusGone, response.ErrorFromCode("DEPRECATED_ENDPOINT", "update-product-prices is deprecated; use /v1/batch/update-sku-snapshots"))
 }
 
 func (ctrl *Controller) UpdateSKUSnapshots(c *gin.Context) {
@@ -192,6 +149,7 @@ func (ctrl *Controller) UpdateSKUSnapshots(c *gin.Context) {
 			Market:           req.Market,
 			ProductIDs:       req.ProductIDs,
 			Currencies:       req.Currencies,
+			TargetGroup:      batch.TargetGroup(strings.ToUpper(strings.TrimSpace(req.TargetGroup))),
 			CollectedBefore:  req.CollectedBefore,
 			Force:            req.Force,
 		},
@@ -226,12 +184,8 @@ func (ctrl *Controller) GetBatchStatus(c *gin.Context) {
 		return
 	}
 	if !ok {
-		selectedJobType := batch.JobTypePriceUpdate
-		if jobType == string(batch.JobTypeSKUSnapshotUpdate) {
-			selectedJobType = batch.JobTypeSKUSnapshotUpdate
-		}
 		c.JSON(http.StatusOK, response.SuccessWithData(gin.H{
-			"job_type": selectedJobType,
+			"job_type": batch.JobTypeSKUSnapshotUpdate,
 			"status":   nil,
 		}))
 		return
@@ -242,10 +196,7 @@ func (ctrl *Controller) GetBatchStatus(c *gin.Context) {
 
 func (ctrl *Controller) currentStatus(jobType string) (batch.BatchJobStatus, bool, error) {
 	switch jobType {
-	case "", string(batch.JobTypePriceUpdate):
-		status, ok := ctrl.priceUpdater.CurrentStatus()
-		return status, ok, nil
-	case string(batch.JobTypeSKUSnapshotUpdate):
+	case "", string(batch.JobTypeSKUSnapshotUpdate):
 		status, ok := ctrl.skuSnapshotUpdater.CurrentStatus()
 		return status, ok, nil
 	default:
@@ -261,6 +212,9 @@ func decodeUpdatePricesRequest(c *gin.Context) (updatePricesRequest, error) {
 	req.Currencies = normalizeCurrencies(req.Currencies)
 	if err := validateCurrencies(req.Currencies); err != nil {
 		return req, err
+	}
+	if !batch.IsValidTargetGroup(req.TargetGroup) {
+		return req, fmt.Errorf("unsupported target_group: %s", req.TargetGroup)
 	}
 	return req, nil
 }

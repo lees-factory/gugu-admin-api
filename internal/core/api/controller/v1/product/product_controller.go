@@ -52,8 +52,6 @@ type productListItemResponse struct {
 	OriginalURL       string `json:"original_url"`
 	Title             string `json:"title"`
 	MainImageURL      string `json:"main_image_url"`
-	CurrentPrice      string `json:"current_price"`
-	Currency          string `json:"currency"`
 	ProductURL        string `json:"product_url"`
 	CollectionSource  string `json:"collection_source"`
 	Language          string `json:"language"`
@@ -69,8 +67,6 @@ func toProductListResponse(items []domainproduct.LocalizedProduct) []productList
 			OriginalURL:       item.OriginalURL,
 			Title:             item.Title,
 			MainImageURL:      item.MainImageURL,
-			CurrentPrice:      item.CurrentPrice,
-			Currency:          item.Currency,
 			ProductURL:        item.ProductURL,
 			CollectionSource:  item.CollectionSource,
 			Language:          item.Language,
