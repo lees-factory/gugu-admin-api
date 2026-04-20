@@ -14,7 +14,8 @@ import (
 type JobType string
 
 const (
-	JobTypeSKUSnapshotUpdate JobType = "SKU_SNAPSHOT_UPDATE"
+	JobTypeSKUSnapshotUpdate   JobType = "SKU_SNAPSHOT_UPDATE"
+	JobTypePriceAlertEmailScan JobType = "PRICE_ALERT_EMAIL_SCAN"
 )
 
 type TriggerType string

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"log"
 	"net/http"
 	"os"
 
@@ -20,6 +21,7 @@ import (
 	domainuser "github.com/ljj/gugu-admin-api/internal/core/domain/user"
 	"github.com/ljj/gugu-admin-api/internal/provider/batch"
 	dbcoreadminauth "github.com/ljj/gugu-admin-api/internal/storage/dbcore/adminauth"
+	dbcorepricealert "github.com/ljj/gugu-admin-api/internal/storage/dbcore/pricealert"
 	dbcorepricehistory "github.com/ljj/gugu-admin-api/internal/storage/dbcore/pricehistory"
 	dbcoreproduct "github.com/ljj/gugu-admin-api/internal/storage/dbcore/product"
 	dbcoreproductalias "github.com/ljj/gugu-admin-api/internal/storage/dbcore/productalias"
@@ -29,6 +31,7 @@ import (
 	"github.com/ljj/gugu-admin-api/internal/support/clock"
 	"github.com/ljj/gugu-admin-api/internal/support/config"
 	"github.com/ljj/gugu-admin-api/internal/support/id"
+	supportmailer "github.com/ljj/gugu-admin-api/internal/support/mailer"
 )
 
 func NewServer(cfg config.Config, db *sql.DB) *gin.Engine {
@@ -126,6 +129,27 @@ func registerRoutes(
 		cfg.SKUSnapshotMaxDelay,
 	)
 	hotProductLoader := batch.NewHotProductLoader(aliexpressClient, productService, productAliasRepo)
+	priceAlertRepo := dbcorepricealert.NewRepository(db, cfg.PriceAlertMailClaimRetryAfter)
+	var priceAlertEmailDispatcher *batch.PriceAlertEmailDispatcher
+	smtpSender, smtpErr := supportmailer.NewSMTPSender(supportmailer.Config{
+		Host:     cfg.MailSMTPHost,
+		Port:     cfg.MailSMTPPort,
+		Username: cfg.MailSMTPUsername,
+		Password: cfg.MailSMTPPassword,
+	})
+	if smtpErr != nil {
+		log.Printf("price alert email sender disabled: %v", smtpErr)
+	} else if cfg.MailFrom == "" {
+		log.Printf("price alert email sender disabled: MAIL_FROM is empty")
+	} else {
+		priceAlertMailer := batch.NewSMTPPriceAlertMailer(smtpSender, cfg.MailFrom, cfg.PriceAlertMailSubjectPrefix)
+		priceAlertEmailDispatcher = batch.NewPriceAlertEmailDispatcher(
+			priceAlertRepo,
+			priceAlertMailer,
+			batchStatusStore,
+			cfg.PriceAlertMailBatchLimit,
+		)
+	}
 	if cfg.TokenRefreshEnabled {
 		tokenRefreshScheduler := batch.NewTokenRefreshScheduler(
 			tokenService,
@@ -145,6 +169,17 @@ func registerRoutes(
 		)
 		hotProductScheduler.Start(context.Background())
 	}
+	if cfg.PriceAlertMailScheduleEnabled {
+		if priceAlertEmailDispatcher == nil {
+			log.Printf("price alert email scheduler skipped: sender is not configured")
+		} else {
+			priceAlertEmailScheduler := batch.NewPriceAlertEmailScheduler(
+				priceAlertEmailDispatcher,
+				cfg.PriceAlertMailScheduleInterval,
+			)
+			priceAlertEmailScheduler.Start(context.Background())
+		}
+	}
 	if cfg.SessionCleanupEnabled {
 		sessionCleanupScheduler := batch.NewSessionCleanupScheduler(
 			userService,
@@ -155,7 +190,7 @@ func registerRoutes(
 	}
 
 	// Controllers
-	batchController := batchctrl.NewController(skuEnricher, skuSnapshotUpdater, hotProductLoader)
+	batchController := batchctrl.NewController(skuEnricher, skuSnapshotUpdater, hotProductLoader, priceAlertEmailDispatcher)
 	batchController.RegisterRoutes(rg)
 	productController := productctrl.NewController(productService)
 	productController.RegisterRoutes(rg)

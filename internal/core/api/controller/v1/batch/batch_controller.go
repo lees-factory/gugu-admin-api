@@ -18,9 +18,10 @@ import (
 )
 
 type Controller struct {
-	skuEnricher        *batch.SKUEnricher
-	skuSnapshotUpdater *batch.SKUSnapshotUpdater
-	hotProductLoader   *batch.HotProductLoader
+	skuEnricher               *batch.SKUEnricher
+	skuSnapshotUpdater        *batch.SKUSnapshotUpdater
+	hotProductLoader          *batch.HotProductLoader
+	priceAlertEmailDispatcher *batch.PriceAlertEmailDispatcher
 }
 
 type updatePricesRequest struct {
@@ -46,11 +47,13 @@ func NewController(
 	skuEnricher *batch.SKUEnricher,
 	skuSnapshotUpdater *batch.SKUSnapshotUpdater,
 	hotProductLoader *batch.HotProductLoader,
+	priceAlertEmailDispatcher *batch.PriceAlertEmailDispatcher,
 ) *Controller {
 	return &Controller{
-		skuEnricher:        skuEnricher,
-		skuSnapshotUpdater: skuSnapshotUpdater,
-		hotProductLoader:   hotProductLoader,
+		skuEnricher:               skuEnricher,
+		skuSnapshotUpdater:        skuSnapshotUpdater,
+		hotProductLoader:          hotProductLoader,
+		priceAlertEmailDispatcher: priceAlertEmailDispatcher,
 	}
 }
 
@@ -60,6 +63,7 @@ func (ctrl *Controller) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/batch/enrich-skus/all", ctrl.EnrichAll)
 	rg.POST("/batch/update-product-prices", ctrl.UpdateProductPrices)
 	rg.POST("/batch/update-sku-snapshots", ctrl.UpdateSKUSnapshots)
+	rg.POST("/batch/send-price-alert-emails", ctrl.SendPriceAlertEmails)
 	rg.GET("/batch/status", ctrl.GetBatchStatus)
 }
 
@@ -194,10 +198,41 @@ func (ctrl *Controller) GetBatchStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, response.SuccessWithData(status))
 }
 
+func (ctrl *Controller) SendPriceAlertEmails(c *gin.Context) {
+	if ctrl.priceAlertEmailDispatcher == nil {
+		c.JSON(http.StatusServiceUnavailable, response.ErrorFromCode(
+			"PRICE_ALERT_MAILER_NOT_CONFIGURED",
+			"price alert email sender is not configured",
+		))
+		return
+	}
+
+	status := ctrl.priceAlertEmailDispatcher.Queue(batch.TriggerTypeManual)
+	go func() {
+		result, err := ctrl.priceAlertEmailDispatcher.Run(context.Background(), batch.TriggerTypeManual)
+		if err != nil {
+			log.Printf("price alert email batch failed: %v", err)
+			return
+		}
+		log.Printf("price alert email batch completed: %+v", result)
+	}()
+
+	c.JSON(http.StatusAccepted, response.SuccessWithData(gin.H{
+		"message": "price alert email batch started",
+		"job":     status,
+	}))
+}
+
 func (ctrl *Controller) currentStatus(jobType string) (batch.BatchJobStatus, bool, error) {
 	switch jobType {
 	case "", string(batch.JobTypeSKUSnapshotUpdate):
 		status, ok := ctrl.skuSnapshotUpdater.CurrentStatus()
+		return status, ok, nil
+	case string(batch.JobTypePriceAlertEmailScan):
+		if ctrl.priceAlertEmailDispatcher == nil {
+			return batch.BatchJobStatus{}, false, nil
+		}
+		status, ok := ctrl.priceAlertEmailDispatcher.CurrentStatus()
 		return status, ok, nil
 	default:
 		return batch.BatchJobStatus{}, false, fmt.Errorf("unsupported job type")

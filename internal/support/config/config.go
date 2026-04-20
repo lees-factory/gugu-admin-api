@@ -8,64 +8,84 @@ import (
 )
 
 type Config struct {
-	Port                        string
-	CORSAllowedOrigins          []string
-	AdminAPIKeys                []string
-	AdminAuthTokenSecret        string
-	AdminAuthTokenTTL           time.Duration
-	DatabaseURL                 string
-	DBMaxOpenConns              int
-	DBMaxIdleConns              int
-	DBConnMaxLifetime           time.Duration
-	DBConnMaxIdleTime           time.Duration
-	AliExpressAppKey            string
-	AliExpressAppSecret         string
-	AliExpressDSAppKey          string
-	AliExpressDSAppSecret       string
-	SKUEnrichMinDelay           time.Duration
-	SKUEnrichMaxDelay           time.Duration
-	SKUSnapshotMinDelay         time.Duration
-	SKUSnapshotMaxDelay         time.Duration
-	TokenRefreshEnabled         bool
-	TokenRefreshInterval        time.Duration
-	HotProductScheduleEnabled   bool
-	HotProductScheduleInterval  time.Duration
-	HotProductSnapshotStagger   time.Duration
-	SessionCleanupEnabled       bool
-	SessionCleanupInterval      time.Duration
-	SessionCleanupRetentionDays int
+	Port                           string
+	CORSAllowedOrigins             []string
+	AdminAPIKeys                   []string
+	AdminAuthTokenSecret           string
+	AdminAuthTokenTTL              time.Duration
+	DatabaseURL                    string
+	DBMaxOpenConns                 int
+	DBMaxIdleConns                 int
+	DBConnMaxLifetime              time.Duration
+	DBConnMaxIdleTime              time.Duration
+	AliExpressAppKey               string
+	AliExpressAppSecret            string
+	AliExpressDSAppKey             string
+	AliExpressDSAppSecret          string
+	SKUEnrichMinDelay              time.Duration
+	SKUEnrichMaxDelay              time.Duration
+	SKUSnapshotMinDelay            time.Duration
+	SKUSnapshotMaxDelay            time.Duration
+	TokenRefreshEnabled            bool
+	TokenRefreshInterval           time.Duration
+	HotProductScheduleEnabled      bool
+	HotProductScheduleInterval     time.Duration
+	HotProductSnapshotStagger      time.Duration
+	PriceAlertMailScheduleEnabled  bool
+	PriceAlertMailScheduleInterval time.Duration
+	PriceAlertMailBatchLimit       int
+	PriceAlertMailClaimRetryAfter  time.Duration
+	SessionCleanupEnabled          bool
+	SessionCleanupInterval         time.Duration
+	SessionCleanupRetentionDays    int
+	MailSMTPHost                   string
+	MailSMTPPort                   int
+	MailSMTPUsername               string
+	MailSMTPPassword               string
+	MailFrom                       string
+	PriceAlertMailSubjectPrefix    string
 }
 
 func Load() Config {
 	adminTokenSecret := getEnvOrDefault("ADMIN_AUTH_TOKEN_SECRET", getEnvOrDefault("JWT_SECRET", ""))
 
 	return Config{
-		Port:                        getEnvOrDefault("PORT", "8700"),
-		CORSAllowedOrigins:          getEnvAsCSV("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://127.0.0.1:5173"}),
-		AdminAPIKeys:                getEnvAsCSV("ADMIN_API_KEYS", nil),
-		AdminAuthTokenSecret:        adminTokenSecret,
-		AdminAuthTokenTTL:           getEnvAsDuration("ADMIN_AUTH_TOKEN_TTL", 24*time.Hour),
-		DatabaseURL:                 getEnvOrDefault("DATABASE_URL", ""),
-		DBMaxOpenConns:              getEnvAsInt("DB_MAX_OPEN_CONNS", 10),
-		DBMaxIdleConns:              getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
-		DBConnMaxLifetime:           getEnvAsDuration("DB_CONN_MAX_LIFETIME", 30*time.Minute),
-		DBConnMaxIdleTime:           getEnvAsDuration("DB_CONN_MAX_IDLE_TIME", 10*time.Minute),
-		AliExpressAppKey:            getEnvOrDefault("ALIEXPRESS_APP_KEY", ""),
-		AliExpressAppSecret:         getEnvOrDefault("ALIEXPRESS_APP_SECRET", ""),
-		AliExpressDSAppKey:          getEnvOrDefault("ALIEXPRESS_DS_APP_KEY", ""),
-		AliExpressDSAppSecret:       getEnvOrDefault("ALIEXPRESS_DS_APP_SECRET", ""),
-		SKUEnrichMinDelay:           getEnvAsDuration("SKU_ENRICH_MIN_DELAY", 4*time.Second),
-		SKUEnrichMaxDelay:           getEnvAsDuration("SKU_ENRICH_MAX_DELAY", 7*time.Second),
-		SKUSnapshotMinDelay:         getEnvAsDuration("SKU_SNAPSHOT_MIN_DELAY", 3*time.Second),
-		SKUSnapshotMaxDelay:         getEnvAsDuration("SKU_SNAPSHOT_MAX_DELAY", 5*time.Second),
-		TokenRefreshEnabled:         getEnvAsBool("TOKEN_REFRESH_SCHEDULE_ENABLED", false),
-		TokenRefreshInterval:        getEnvAsDuration("TOKEN_REFRESH_SCHEDULE_INTERVAL", 12*time.Hour),
-		HotProductScheduleEnabled:   getEnvAsBool("HOT_PRODUCT_SCHEDULE_ENABLED", false),
-		HotProductScheduleInterval:  getEnvAsDuration("HOT_PRODUCT_SCHEDULE_INTERVAL", 24*time.Hour),
-		HotProductSnapshotStagger:   getEnvAsDuration("HOT_PRODUCT_SNAPSHOT_STAGGER", 20*time.Minute),
-		SessionCleanupEnabled:       getEnvAsBool("SESSION_CLEANUP_SCHEDULE_ENABLED", false),
-		SessionCleanupInterval:      getEnvAsDuration("SESSION_CLEANUP_SCHEDULE_INTERVAL", 24*time.Hour),
-		SessionCleanupRetentionDays: getEnvAsInt("SESSION_CLEANUP_RETENTION_DAYS", 90),
+		Port:                           getEnvOrDefault("PORT", "8700"),
+		CORSAllowedOrigins:             getEnvAsCSV("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://127.0.0.1:5173"}),
+		AdminAPIKeys:                   getEnvAsCSV("ADMIN_API_KEYS", nil),
+		AdminAuthTokenSecret:           adminTokenSecret,
+		AdminAuthTokenTTL:              getEnvAsDuration("ADMIN_AUTH_TOKEN_TTL", 24*time.Hour),
+		DatabaseURL:                    getEnvOrDefault("DATABASE_URL", ""),
+		DBMaxOpenConns:                 getEnvAsInt("DB_MAX_OPEN_CONNS", 10),
+		DBMaxIdleConns:                 getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
+		DBConnMaxLifetime:              getEnvAsDuration("DB_CONN_MAX_LIFETIME", 30*time.Minute),
+		DBConnMaxIdleTime:              getEnvAsDuration("DB_CONN_MAX_IDLE_TIME", 10*time.Minute),
+		AliExpressAppKey:               getEnvOrDefault("ALIEXPRESS_APP_KEY", ""),
+		AliExpressAppSecret:            getEnvOrDefault("ALIEXPRESS_APP_SECRET", ""),
+		AliExpressDSAppKey:             getEnvOrDefault("ALIEXPRESS_DS_APP_KEY", ""),
+		AliExpressDSAppSecret:          getEnvOrDefault("ALIEXPRESS_DS_APP_SECRET", ""),
+		SKUEnrichMinDelay:              getEnvAsDuration("SKU_ENRICH_MIN_DELAY", 4*time.Second),
+		SKUEnrichMaxDelay:              getEnvAsDuration("SKU_ENRICH_MAX_DELAY", 7*time.Second),
+		SKUSnapshotMinDelay:            getEnvAsDuration("SKU_SNAPSHOT_MIN_DELAY", 3*time.Second),
+		SKUSnapshotMaxDelay:            getEnvAsDuration("SKU_SNAPSHOT_MAX_DELAY", 5*time.Second),
+		TokenRefreshEnabled:            getEnvAsBool("TOKEN_REFRESH_SCHEDULE_ENABLED", false),
+		TokenRefreshInterval:           getEnvAsDuration("TOKEN_REFRESH_SCHEDULE_INTERVAL", 12*time.Hour),
+		HotProductScheduleEnabled:      getEnvAsBool("HOT_PRODUCT_SCHEDULE_ENABLED", false),
+		HotProductScheduleInterval:     getEnvAsDuration("HOT_PRODUCT_SCHEDULE_INTERVAL", 24*time.Hour),
+		HotProductSnapshotStagger:      getEnvAsDuration("HOT_PRODUCT_SNAPSHOT_STAGGER", 20*time.Minute),
+		PriceAlertMailScheduleEnabled:  getEnvAsBool("PRICE_ALERT_MAIL_SCHEDULE_ENABLED", false),
+		PriceAlertMailScheduleInterval: getEnvAsDuration("PRICE_ALERT_MAIL_SCHEDULE_INTERVAL", 10*time.Minute),
+		PriceAlertMailBatchLimit:       getEnvAsInt("PRICE_ALERT_MAIL_BATCH_LIMIT", 200),
+		PriceAlertMailClaimRetryAfter:  getEnvAsDuration("PRICE_ALERT_MAIL_CLAIM_RETRY_AFTER", 10*time.Minute),
+		SessionCleanupEnabled:          getEnvAsBool("SESSION_CLEANUP_SCHEDULE_ENABLED", false),
+		SessionCleanupInterval:         getEnvAsDuration("SESSION_CLEANUP_SCHEDULE_INTERVAL", 24*time.Hour),
+		SessionCleanupRetentionDays:    getEnvAsInt("SESSION_CLEANUP_RETENTION_DAYS", 90),
+		MailSMTPHost:                   getEnvOrDefault("MAIL_SMTP_HOST", ""),
+		MailSMTPPort:                   getEnvAsInt("MAIL_SMTP_PORT", 587),
+		MailSMTPUsername:               getEnvOrDefault("MAIL_SMTP_USERNAME", ""),
+		MailSMTPPassword:               getEnvOrDefault("MAIL_SMTP_PASSWORD", ""),
+		MailFrom:                       getEnvOrDefault("MAIL_FROM", ""),
+		PriceAlertMailSubjectPrefix:    getEnvOrDefault("PRICE_ALERT_MAIL_SUBJECT_PREFIX", "[GUGU]"),
 	}
 }
 

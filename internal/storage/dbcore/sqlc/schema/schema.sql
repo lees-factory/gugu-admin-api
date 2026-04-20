@@ -171,9 +171,29 @@ CREATE TABLE IF NOT EXISTS gugu.price_alert (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES gugu.app_user(id),
     sku_id TEXT NOT NULL REFERENCES gugu.sku(id),
+    currency TEXT NOT NULL DEFAULT 'KRW',
     channel TEXT NOT NULL DEFAULT 'EMAIL',
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    last_notified_recorded_at TIMESTAMPTZ,
+    last_notified_at TIMESTAMPTZ,
+    last_notified_currency TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS gugu.price_alert_notification_log (
+    alert_id TEXT NOT NULL REFERENCES gugu.price_alert(id),
+    sku_id TEXT NOT NULL REFERENCES gugu.sku(id),
+    currency TEXT NOT NULL,
+    recorded_at TIMESTAMPTZ NOT NULL,
+    channel TEXT NOT NULL DEFAULT 'EMAIL',
+    status TEXT NOT NULL DEFAULT 'PROCESSING',
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    sent_at TIMESTAMPTZ,
+    last_error TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (alert_id, currency, recorded_at, channel)
 );
 
 CREATE TABLE IF NOT EXISTS gugu.user_login_session (
@@ -222,3 +242,6 @@ CREATE INDEX IF NOT EXISTS idx_product_sku_product_id ON gugu.sku(product_id);
 CREATE INDEX IF NOT EXISTS idx_app_user_email ON gugu.app_user(email);
 CREATE INDEX IF NOT EXISTS idx_oauth_identity_user_id ON gugu.oauth_identity(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_tracked_item_user_id ON gugu.user_tracked_item(user_id);
+CREATE INDEX IF NOT EXISTS idx_price_alert_enabled_channel ON gugu.price_alert(enabled, channel);
+CREATE INDEX IF NOT EXISTS idx_price_alert_sku_currency ON gugu.price_alert(sku_id, currency);
+CREATE INDEX IF NOT EXISTS idx_price_alert_notification_log_status_claimed ON gugu.price_alert_notification_log(status, claimed_at);
