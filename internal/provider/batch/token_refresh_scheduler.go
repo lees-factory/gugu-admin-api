@@ -179,7 +179,7 @@ func addAffiliateRefreshExpiryCandidateWithService(
 func (s *TokenRefreshScheduler) refreshOne(ctx context.Context, t domaintoken.SellerToken) {
 	now := time.Now()
 
-	if t.RefreshTokenExpiresAt != nil && now.After(*t.RefreshTokenExpiresAt) {
+	if shouldSkipRefreshByTokenExpiry(t, now) {
 		log.Printf("token refresh scheduler: refresh token expired for seller=%s app_type=%s — re-authorization required", t.SellerID, t.AppType)
 		return
 	}
@@ -268,4 +268,18 @@ func shouldRefreshDropshippingToday(now time.Time, lastRefreshedAt time.Time, lo
 	}
 
 	return nowLocal.YearDay() != lastLocal.YearDay()
+}
+
+func shouldSkipRefreshByTokenExpiry(t domaintoken.SellerToken, now time.Time) bool {
+	// Dropshipping refresh responses can omit refresh-token TTL metadata.
+	// Avoid hard-skipping by local expiry timestamp and let upstream decide.
+	if t.AppType == domaintoken.AppTypeDropshipping {
+		return false
+	}
+
+	if t.RefreshTokenExpiresAt == nil {
+		return false
+	}
+
+	return now.After(*t.RefreshTokenExpiresAt)
 }

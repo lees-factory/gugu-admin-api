@@ -70,3 +70,39 @@ func TestShouldRefreshDropshippingToday(t *testing.T) {
 		}
 	})
 }
+
+func TestShouldSkipRefreshByTokenExpiry(t *testing.T) {
+	now := time.Date(2026, time.April, 20, 12, 0, 0, 0, time.UTC)
+	expired := now.Add(-1 * time.Minute)
+	future := now.Add(1 * time.Hour)
+
+	t.Run("dropshipping ignores local expiry", func(t *testing.T) {
+		token := domaintoken.SellerToken{
+			AppType:               domaintoken.AppTypeDropshipping,
+			RefreshTokenExpiresAt: &expired,
+		}
+		if shouldSkipRefreshByTokenExpiry(token, now) {
+			t.Fatalf("shouldSkipRefreshByTokenExpiry() = true, want false")
+		}
+	})
+
+	t.Run("affiliate skips when expired", func(t *testing.T) {
+		token := domaintoken.SellerToken{
+			AppType:               domaintoken.AppTypeAffiliate,
+			RefreshTokenExpiresAt: &expired,
+		}
+		if !shouldSkipRefreshByTokenExpiry(token, now) {
+			t.Fatalf("shouldSkipRefreshByTokenExpiry() = false, want true")
+		}
+	})
+
+	t.Run("affiliate does not skip when not expired", func(t *testing.T) {
+		token := domaintoken.SellerToken{
+			AppType:               domaintoken.AppTypeAffiliate,
+			RefreshTokenExpiresAt: &future,
+		}
+		if shouldSkipRefreshByTokenExpiry(token, now) {
+			t.Fatalf("shouldSkipRefreshByTokenExpiry() = true, want false")
+		}
+	})
+}
