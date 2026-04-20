@@ -16,7 +16,6 @@ type TokenRefreshScheduler struct {
 	dropshippingClient *aliexpress.PlatformClient
 	interval           time.Duration
 	refreshMargin      time.Duration
-	dailyRefreshWindow time.Duration
 	affiliateRTMargin  time.Duration
 	runMu              sync.Mutex
 }
@@ -33,7 +32,6 @@ func NewTokenRefreshScheduler(
 		dropshippingClient: dropshippingClient,
 		interval:           interval,
 		refreshMargin:      6 * time.Hour,
-		dailyRefreshWindow: 24 * time.Hour,
 		affiliateRTMargin:  24 * time.Hour,
 	}
 }
@@ -89,9 +87,14 @@ func (s *TokenRefreshScheduler) runMidnightDSFirst(ctx context.Context) {
 	} else if dsToken == nil {
 		log.Printf("token refresh scheduler: dropshipping token missing at midnight run")
 	} else {
-		log.Printf("token refresh scheduler: midnight ds-first refresh start (seller=%s)", dsToken.SellerID)
-		// Force refresh attempt even when access token is not near expiry.
-		s.refreshOne(ctx, *dsToken)
+		now := s.tokenService.Now()
+		if shouldRefreshDropshippingToday(now, dsToken.LastRefreshedAt, scheduleLocation) {
+			log.Printf("token refresh scheduler: midnight ds-first refresh start (seller=%s)", dsToken.SellerID)
+			// Force refresh attempt even when access token is not near expiry.
+			s.refreshOne(ctx, *dsToken)
+		} else {
+			log.Printf("token refresh scheduler: midnight ds-first skipped; already refreshed today (seller=%s)", dsToken.SellerID)
+		}
 	}
 
 	tokens, err := s.tokenService.GetExpiringSoon(ctx, s.refreshMargin)
@@ -136,7 +139,7 @@ func (s *TokenRefreshScheduler) addDropshippingDailyCandidate(ctx context.Contex
 		return tokens
 	}
 
-	if s.tokenService.Now().Sub(dsToken.LastRefreshedAt) < s.dailyRefreshWindow {
+	if !shouldRefreshDropshippingToday(s.tokenService.Now(), dsToken.LastRefreshedAt, scheduleLocation) {
 		return tokens
 	}
 
@@ -250,4 +253,19 @@ func removeAppType(tokens []domaintoken.SellerToken, appType domaintoken.AppType
 		result = append(result, token)
 	}
 	return result
+}
+
+func shouldRefreshDropshippingToday(now time.Time, lastRefreshedAt time.Time, loc *time.Location) bool {
+	if lastRefreshedAt.IsZero() {
+		return true
+	}
+
+	nowLocal := now.In(loc)
+	lastLocal := lastRefreshedAt.In(loc)
+
+	if nowLocal.Year() != lastLocal.Year() {
+		return true
+	}
+
+	return nowLocal.YearDay() != lastLocal.YearDay()
 }
